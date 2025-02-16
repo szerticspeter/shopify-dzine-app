@@ -1,13 +1,28 @@
 exports.handler = async function(event, context) {
     console.log("Function started");
 
-    // Load Shopify credentials from environment variables
     const SHOPIFY_ACCESS_TOKEN = process.env.REACT_APP_SHOPIFY_ACCESS_TOKEN;
-    const SHOPIFY_STORE_DOMAIN = process.env.REACT_APP_SHOPIFY_STORE_DOMAIN;
+    const SHOPIFY_STORE_DOMAIN = "g2pgc1-08.myshopify.com";  // Fixed your store domain
 
-    // Parse the request body to get the image URL
-    const body = JSON.parse(event.body);
-    const imageUrl = body.imageUrl;  // This should be the processed Dzine.ai image URL
+    // Check if the request body exists
+    if (!event.body) {
+        return {
+            statusCode: 400,
+            body: JSON.stringify({ error: "Request body is missing. Please send JSON data." })
+        };
+    }
+
+    let body;
+    try {
+        body = JSON.parse(event.body);
+    } catch (error) {
+        return {
+            statusCode: 400,
+            body: JSON.stringify({ error: "Invalid JSON format" })
+        };
+    }
+
+    const imageUrl = body.imageUrl; // Extract image URL
 
     if (!imageUrl) {
         return {
@@ -18,10 +33,8 @@ exports.handler = async function(event, context) {
 
     console.log("Creating product with image:", imageUrl);
 
-    // Shopify API endpoint for creating products
     const url = `https://${SHOPIFY_STORE_DOMAIN}/admin/api/2023-10/products.json`;
 
-    // Define the product details
     const productData = {
         product: {
             title: "Custom Canvas Print",
@@ -50,7 +63,7 @@ exports.handler = async function(event, context) {
         });
 
         if (!response.ok) {
-            const errorText = await response.text(); // Get detailed error message
+            const errorText = await response.text();
             throw new Error(`Shopify API error: ${response.status} - ${errorText}`);
         }
 
