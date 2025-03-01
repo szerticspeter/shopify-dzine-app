@@ -53,6 +53,7 @@ exports.handler = async function(event, context) {
 
     const url = `https://${SHOPIFY_STORE_DOMAIN}/admin/api/2023-10/products.json`;
 
+    // Store the image URL as a metafield for later retrieval
     const productData = {
         product: {
             title: "Custom Canvas Print",
@@ -64,7 +65,23 @@ exports.handler = async function(event, context) {
                 {
                     option1: "Default",
                     price: "49.99",
-                    sku: "CUSTOM-CANVAS-30x40"
+                    sku: "CUSTOM-CANVAS-30x40",
+                    metafields: [
+                        {
+                            key: "image_url",
+                            value: imageUrl,
+                            type: "single_line_text_field",
+                            namespace: "custom"
+                        }
+                    ]
+                }
+            ],
+            metafields: [
+                {
+                    key: "canvas_image_url",
+                    value: imageUrl,
+                    type: "single_line_text_field",
+                    namespace: "custom"
                 }
             ]
         }

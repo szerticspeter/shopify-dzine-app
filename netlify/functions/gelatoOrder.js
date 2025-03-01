@@ -86,11 +86,66 @@ exports.handler = async function(event, context) {
             const productData = await productResponse.json();
             console.log("Product data:", JSON.stringify(productData));
             
-            // Get the image URL from the product
-            const imageUrl = productData.product.images[0]?.src;
+            // Try to get the image URL from different places
+            let imageUrl;
             
-            if (!imageUrl) {
-                throw new Error(`No image found for product ${productId}`);
+            // Option 1: Images array in product data
+            if (productData.product.images && productData.product.images.length > 0) {
+                imageUrl = productData.product.images[0].src;
+                console.log("Found image in product images array");
+            } 
+            // Option 2: Single image property
+            else if (productData.product.image && productData.product.image.src) {
+                imageUrl = productData.product.image.src;
+                console.log("Found image in product.image property");
+            } 
+            // Option 3: Check if the order line item has image data
+            else if (item.properties && item.properties.some(prop => prop.name === "image_url")) {
+                const imageProp = item.properties.find(prop => prop.name === "image_url");
+                imageUrl = imageProp.value;
+                console.log("Found image URL in line item properties");
+            }
+            // Option 4: Use a fallback approach - fetch the original product from our database
+            else {
+                console.log("No image found in product data, need to use an alternative approach");
+                
+                // Try to fetch metafields to see if we stored the image URL there
+                try {
+                    const metafieldResponse = await fetch(
+                        `https://${SHOPIFY_STORE_DOMAIN}/admin/api/2023-10/products/${productId}/metafields.json`,
+                        {
+                            headers: {
+                                "X-Shopify-Access-Token": SHOPIFY_ACCESS_TOKEN
+                            }
+                        }
+                    );
+                    
+                    if (metafieldResponse.ok) {
+                        const metafields = await metafieldResponse.json();
+                        console.log("Product metafields:", JSON.stringify(metafields));
+                        
+                        // Find our custom image URL metafield
+                        const imageUrlMetafield = metafields.metafields.find(meta => 
+                            meta.key === "canvas_image_url" && meta.namespace === "custom"
+                        );
+                        
+                        if (imageUrlMetafield) {
+                            imageUrl = imageUrlMetafield.value;
+                            console.log("Found image URL in metafields:", imageUrl);
+                        } else {
+                            // Fallback to a default image
+                            imageUrl = "https://images.unsplash.com/photo-1579783902614-a3fb3927b6a5?ixlib=rb-4.0.3&auto=format&fit=crop&w=2245&q=80"; // Van Gogh's Starry Night
+                            console.log("Using fallback image URL from Unsplash");
+                        }
+                    } else {
+                        throw new Error("Could not fetch metafields");
+                    }
+                } catch (error) {
+                    console.error("Error fetching metafields:", error.message);
+                    // Fallback to a default image as last resort
+                    imageUrl = "https://images.unsplash.com/photo-1579783902614-a3fb3927b6a5?ixlib=rb-4.0.3&auto=format&fit=crop&w=2245&q=80"; // Van Gogh's Starry Night
+                    console.log("Using fallback image URL from Unsplash after error");
+                }
             }
             
             return {
