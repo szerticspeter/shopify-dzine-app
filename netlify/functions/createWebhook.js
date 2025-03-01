@@ -20,8 +20,8 @@ exports.handler = async function(event, context) {
     const SHOPIFY_ACCESS_TOKEN = process.env.SHOPIFY_ACCESS_TOKEN;
     const SHOPIFY_STORE_DOMAIN = "g2pgc1-08.myshopify.com";
     
-    // This should be your Netlify site URL
-    const NETLIFY_SITE_URL = "https://your-netlify-site-url.netlify.app";
+    // Your Netlify site URL
+    const NETLIFY_SITE_URL = "https://shopify-dzine.netlify.app";
     
     if (!SHOPIFY_ACCESS_TOKEN) {
         return {
