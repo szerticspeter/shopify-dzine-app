@@ -4,6 +4,8 @@ import { useLocation, useNavigate } from 'react-router-dom';
 function ProductCreate() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [productData, setProductData] = useState(null);
+  const [checkoutUrl, setCheckoutUrl] = useState(null);
   const location = useLocation();
   const navigate = useNavigate();
 
@@ -18,6 +20,8 @@ function ProductCreate() {
           throw new Error('No image URL provided');
         }
 
+        console.log('Creating product with image URL:', imageUrl);
+
         // Call the Netlify function to create a Shopify product
         const response = await fetch('/.netlify/functions/shopifyAuth', {
           method: 'POST',
@@ -27,16 +31,18 @@ function ProductCreate() {
           body: JSON.stringify({ imageUrl }),
         });
 
+        const data = await response.json();
+        
         if (!response.ok) {
-          const errorData = await response.json();
-          throw new Error(errorData.error || 'Failed to create product');
+          throw new Error(data.error || 'Failed to create product');
         }
 
-        const data = await response.json();
         console.log('Product created:', data);
         
-        // Redirect to the Shopify checkout URL
-        window.location.href = data.checkoutUrl;
+        // Store the product data and checkout URL
+        setProductData(data.product);
+        setCheckoutUrl(data.checkoutUrl);
+        setLoading(false);
       } catch (err) {
         console.error('Error creating product:', err);
         setError(err.message);
@@ -54,6 +60,36 @@ function ProductCreate() {
         <h2>Error Creating Product</h2>
         <p>{error}</p>
         <button onClick={() => navigate('/')}>Back to Home</button>
+      </div>
+    );
+  }
+
+  // If product is created successfully, show checkout link
+  if (productData && checkoutUrl) {
+    return (
+      <div className="success-container">
+        <h2>Your Canvas Product is Ready!</h2>
+        <p>Your custom canvas print has been created successfully.</p>
+        
+        <div className="product-details">
+          <h3>Product Details:</h3>
+          <p><strong>Title:</strong> {productData.product.title}</p>
+          <p><strong>Price:</strong> ${productData.product.variants[0].price}</p>
+        </div>
+        
+        {/* Open link in new tab to avoid cross-origin issues */}
+        <a 
+          href={checkoutUrl}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="checkout-button"
+        >
+          Proceed to Checkout
+        </a>
+        
+        <button onClick={() => navigate('/')} className="back-button">
+          Create Another Canvas
+        </button>
       </div>
     );
   }
