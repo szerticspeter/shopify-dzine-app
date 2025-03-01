@@ -82,3 +82,39 @@
   .create-product-button:hover {
     background: #218838;
   }
+  
+  /* Loading Container */
+  .loading-container {
+    text-align: center;
+    padding: 50px 20px;
+    max-width: 600px;
+    margin: 0 auto;
+  }
+  
+  .loading-container h2 {
+    margin-bottom: 20px;
+    color: #333;
+  }
+  
+  /* Error Container */
+  .error-container {
+    text-align: center;
+    padding: 50px 20px;
+    max-width: 600px;
+    margin: 0 auto;
+  }
+  
+  .error-container h2 {
+    margin-bottom: 20px;
+    color: #dc3545;
+  }
+  
+  .error-container button {
+    padding: 10px 20px;
+    background-color: #007bff;
+    color: white;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    margin-top: 20px;
+  }
