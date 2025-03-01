@@ -8,8 +8,21 @@ function App() {
   const [result, setResult] = useState(null);
   const [styles, setStyles] = useState([]);
 
-  // Fetch available styles when component mounts
+  // Mock styles for testing
   useEffect(() => {
+    // Use mock styles instead of fetching from Dzine API
+    const mockStyles = [
+      { style_code: 'mock-style-1', name: 'Watercolor' },
+      { style_code: 'mock-style-2', name: 'Oil Painting' },
+      { style_code: 'mock-style-3', name: 'Sketch' },
+      { style_code: 'mock-style-4', name: 'Abstract' },
+      { style_code: 'mock-style-5', name: 'Digital Art' },
+      { style_code: 'mock-style-6', name: 'Pencil Drawing' }
+    ];
+    
+    setStyles(mockStyles);
+    
+    /* REAL IMPLEMENTATION COMMENTED OUT
     const fetchStyles = async () => {
       try {
         const response = await fetch('https://papi.dzine.ai/openapi/v1/style/list', {
@@ -27,7 +40,7 @@ function App() {
         const data = await response.json();
         if (data.code === 200 && data.data && data.data.list) {
           setStyles(data.data.list);
-          console.log('Available styles:', data.data.list); // Let's see the full style data
+          console.log('Available styles:', data.data.list);
         } else {
           throw new Error(data.msg || 'Failed to load styles');
         }
@@ -38,6 +51,7 @@ function App() {
     };
 
     fetchStyles();
+    */
   }, []);
 
   const handleImageUpload = (event) => {
@@ -53,7 +67,22 @@ function App() {
     setSelectedStyle(styleCode);
     if (uploadedImage) {
       setIsProcessing(true);
+      
       try {
+        // MOCK IMPLEMENTATION FOR TESTING
+        // Skip Dzine.ai API calls and just use the uploaded image directly
+        
+        // Create a URL for the uploaded image
+        const imageUrl = URL.createObjectURL(uploadedImage);
+        console.log('Mock processing - using original image:', imageUrl);
+        
+        // Simulate a short processing delay
+        await new Promise(resolve => setTimeout(resolve, 1500));
+        
+        // Set the result to the original image URL
+        setResult({ url: imageUrl });
+        
+        /* REAL IMPLEMENTATION COMMENTED OUT
         // First, upload the image
         console.log('Starting image upload...');
         const formData = new FormData();
@@ -84,9 +113,9 @@ function App() {
           generate_slots: [1,0,0,0],
           quality_mode: 1,
           style_intensity: 1,
-          structure_match: 0.8, // Add this
-          color_match: 0,      // Add this
-          face_match: 0       // Add this if dealing with faces
+          structure_match: 0.8,
+          color_match: 0,
+          face_match: 0
         };
         
         console.log('Creating task with:', taskRequestBody);
@@ -146,8 +175,8 @@ function App() {
         } else {
           throw new Error('No result URL found in successful response');
         }
-
-        setResult({ url: resultUrl });
+        */
+        
       } catch (error) {
         console.error('Detailed error:', error);
         alert(`Error processing image: ${error.message}`);
