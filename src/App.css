@@ -83,6 +83,72 @@
     background: #218838;
   }
   
+  /* Admin Section */
+  .admin-section {
+    margin: 20px 0;
+    padding: 30px;
+    background: #f8f9fa;
+    border-radius: 8px;
+    text-align: left;
+  }
+  
+  .setup-list {
+    margin: 20px 0;
+    padding-left: 20px;
+  }
+  
+  .setup-list li {
+    margin-bottom: 10px;
+  }
+  
+  .setup-button {
+    margin-top: 20px;
+    padding: 15px 30px;
+    background: #007bff;
+    color: white;
+    border: none;
+    border-radius: 8px;
+    cursor: pointer;
+    font-size: 16px;
+    transition: background 0.3s ease;
+  }
+  
+  .setup-button:hover:not(:disabled) {
+    background: #0056b3;
+  }
+  
+  .setup-button:disabled {
+    background: #cccccc;
+    cursor: not-allowed;
+  }
+  
+  .success-message {
+    margin-top: 30px;
+    padding: 20px;
+    background: #d4edda;
+    border: 1px solid #c3e6cb;
+    border-radius: 8px;
+    color: #155724;
+  }
+  
+  .error-message {
+    margin-top: 30px;
+    padding: 20px;
+    background: #f8d7da;
+    border: 1px solid #f5c6cb;
+    border-radius: 8px;
+    color: #721c24;
+  }
+  
+  pre {
+    background: rgba(255, 255, 255, 0.5);
+    padding: 15px;
+    border-radius: 4px;
+    overflow-x: auto;
+    text-align: left;
+    font-size: 12px;
+  }
+  
   /* Loading Container */
   .loading-container {
     text-align: center;
