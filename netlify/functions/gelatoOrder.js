@@ -17,12 +17,19 @@ exports.handler = async function(event, context) {
         };
     }
 
-    const GELATO_API_KEY = process.env.GELATO_API_KEY;
-    const SHOPIFY_ACCESS_TOKEN = process.env.SHOPIFY_ACCESS_TOKEN;
+    // Check for both naming conventions of the API key
+    const GELATO_API_KEY = process.env.GELATO_API_KEY || process.env.REACT_APP_GELATO_API_KEY;
+    const SHOPIFY_ACCESS_TOKEN = process.env.SHOPIFY_ACCESS_TOKEN || process.env.REACT_APP_SHOPIFY_ACCESS_TOKEN;
     const SHOPIFY_STORE_DOMAIN = "g2pgc1-08.myshopify.com";
     
+    // Log environment variables for debugging
+    console.log("Environment variables check:");
+    console.log("- GELATO_API_KEY exists:", !!process.env.GELATO_API_KEY);
+    console.log("- REACT_APP_GELATO_API_KEY exists:", !!process.env.REACT_APP_GELATO_API_KEY);
+    console.log("- Using API key:", !!GELATO_API_KEY);
+    
     if (!GELATO_API_KEY) {
-        console.error("Missing Gelato API key");
+        console.error("Missing Gelato API key - please set GELATO_API_KEY in Netlify environment variables");
         return {
             statusCode: 500,
             headers,
@@ -87,7 +94,7 @@ exports.handler = async function(event, context) {
             }
             
             return {
-                productUid: "canvas_30x40cm", // Gelato product UID for 30x40cm canvas
+                productUid: "canvas", // Gelato product UID for canvas
                 copies: item.quantity,
                 fileUrl: imageUrl,
                 metadata: {
@@ -128,6 +135,7 @@ exports.handler = async function(event, context) {
         };
         
         console.log("Sending to Gelato:", JSON.stringify(gelatoOrderData));
+        console.log("Using Gelato API key (first 5 chars):", GELATO_API_KEY.substring(0, 5) + "...");
 
         // Send the order to Gelato
         const gelatoResponse = await fetch("https://order.gelatoapis.com/v2/orders", {
