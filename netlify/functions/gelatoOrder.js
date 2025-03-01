@@ -18,7 +18,10 @@ exports.handler = async function(event, context) {
     }
 
     // Check for both naming conventions of the API key
-    const GELATO_API_KEY = process.env.GELATO_API_KEY || process.env.REACT_APP_GELATO_API_KEY;
+    // Try all possible API key naming conventions
+    const GELATO_API_KEY = process.env.GELATO_API_KEY || 
+                          process.env.REACT_APP_GELATO_API_KEY ||
+                          process.env.NTL_GELATO_API_KEY;
     const SHOPIFY_ACCESS_TOKEN = process.env.SHOPIFY_ACCESS_TOKEN || process.env.REACT_APP_SHOPIFY_ACCESS_TOKEN;
     const SHOPIFY_STORE_DOMAIN = "g2pgc1-08.myshopify.com";
     
@@ -132,6 +135,12 @@ exports.handler = async function(event, context) {
                         if (imageUrlMetafield) {
                             imageUrl = imageUrlMetafield.value;
                             console.log("Found image URL in metafields:", imageUrl);
+                            
+                            // Check if it's a blob URL which won't work with external services
+                            if (imageUrl.startsWith('blob:')) {
+                                console.log("Found blob URL in metafields, replacing with fixed image");
+                                imageUrl = "https://images.unsplash.com/photo-1579783902614-a3fb3927b6a5?ixlib=rb-4.0.3&auto=format&fit=crop&w=2245&q=80";
+                            }
                         } else {
                             // Fallback to a default image
                             imageUrl = "https://images.unsplash.com/photo-1579783902614-a3fb3927b6a5?ixlib=rb-4.0.3&auto=format&fit=crop&w=2245&q=80"; // Van Gogh's Starry Night
@@ -192,8 +201,24 @@ exports.handler = async function(event, context) {
         console.log("Sending to Gelato:", JSON.stringify(gelatoOrderData));
         console.log("Using Gelato API key (first 5 chars):", GELATO_API_KEY.substring(0, 5) + "...");
 
+        // Test with a simpler Gelato API request first to verify authentication
+        const testAuthResponse = await fetch("https://api.gelato.com/v1/products", {
+            method: "GET",
+            headers: {
+                "Authorization": `Bearer ${GELATO_API_KEY}`
+            }
+        });
+        
+        if (!testAuthResponse.ok) {
+            console.error("Authentication test failed:", await testAuthResponse.text());
+            console.error("Your Gelato API key may be invalid. Please check your API key in Netlify environment variables.");
+            throw new Error("Gelato API authentication failed. Please check your API key.");
+        } else {
+            console.log("Gelato API authentication successful!");
+        }
+        
         // Send the order to Gelato
-        const gelatoResponse = await fetch("https://order.gelatoapis.com/v2/orders", {
+        const gelatoResponse = await fetch("https://api.gelato.com/v1/orders", {
             method: "POST",
             headers: {
                 "Content-Type": "application/json",
