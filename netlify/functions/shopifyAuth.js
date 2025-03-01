@@ -1,12 +1,29 @@
 exports.handler = async function(event, context) {
     console.log("Function started");
 
-    const SHOPIFY_ACCESS_TOKEN = process.env.REACT_APP_SHOPIFY_ACCESS_TOKEN;
-    const SHOPIFY_STORE_DOMAIN = "g2pgc1-08.myshopify.com";  // Fixed your store domain
+    // Add CORS headers
+    const headers = {
+        'Access-Control-Allow-Origin': '*',
+        'Access-Control-Allow-Headers': 'Content-Type',
+        'Access-Control-Allow-Methods': 'GET, POST, OPTIONS'
+    };
+
+    // Handle preflight OPTIONS request
+    if (event.httpMethod === 'OPTIONS') {
+        return {
+            statusCode: 200,
+            headers,
+            body: ''
+        };
+    }
+
+    const SHOPIFY_ACCESS_TOKEN = process.env.SHOPIFY_ACCESS_TOKEN;  // Changed from REACT_APP_ prefix
+    const SHOPIFY_STORE_DOMAIN = "g2pgc1-08.myshopify.com";
 
     if (!event.body) {
         return {
             statusCode: 400,
+            headers,
             body: JSON.stringify({ error: "Request body is missing. Please send JSON data." })
         };
     }
@@ -17,6 +34,7 @@ exports.handler = async function(event, context) {
     } catch (error) {
         return {
             statusCode: 400,
+            headers,
             body: JSON.stringify({ error: "Invalid JSON format" })
         };
     }
@@ -26,6 +44,7 @@ exports.handler = async function(event, context) {
     if (!imageUrl) {
         return {
             statusCode: 400,
+            headers,
             body: JSON.stringify({ error: "Missing imageUrl in request body" })
         };
     }
@@ -52,6 +71,12 @@ exports.handler = async function(event, context) {
     };
 
     try {
+        if (!SHOPIFY_ACCESS_TOKEN) {
+            throw new Error("Missing Shopify access token. Please check your environment variables.");
+        }
+
+        console.log("Using token:", SHOPIFY_ACCESS_TOKEN ? "Token exists" : "Token missing");
+        
         const response = await fetch(url, {
             method: "POST",
             headers: {
@@ -75,6 +100,7 @@ exports.handler = async function(event, context) {
 
         return {
             statusCode: 200,
+            headers,
             body: JSON.stringify({
                 message: "Product created successfully",
                 product: data,
@@ -85,6 +111,7 @@ exports.handler = async function(event, context) {
         console.error("Error creating product:", error.message);
         return {
             statusCode: 500,
+            headers,
             body: JSON.stringify({ error: error.message })
         };
     }
