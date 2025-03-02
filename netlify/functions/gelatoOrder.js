@@ -202,10 +202,13 @@ exports.handler = async function(event, context) {
         console.log("Using Gelato API key (first 5 chars):", GELATO_API_KEY.substring(0, 5) + "...");
 
         // Test with a simpler Gelato API request first to verify authentication
+        // The API key format appears to be different than expected
+        // Try different authentication methods
         const testAuthResponse = await fetch("https://api.gelato.com/v1/products", {
             method: "GET",
             headers: {
-                "Authorization": `Bearer ${GELATO_API_KEY}`
+                // Try without Bearer prefix
+                "X-API-KEY": GELATO_API_KEY
             }
         });
         
@@ -222,7 +225,7 @@ exports.handler = async function(event, context) {
             method: "POST",
             headers: {
                 "Content-Type": "application/json",
-                "Authorization": `Bearer ${GELATO_API_KEY}`
+                "X-API-KEY": GELATO_API_KEY
             },
             body: JSON.stringify(gelatoOrderData)
         });
