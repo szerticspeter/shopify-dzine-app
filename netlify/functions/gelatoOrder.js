@@ -158,7 +158,7 @@ exports.handler = async function(event, context) {
             }
             
             return {
-                productUid: "canvas", // Gelato product UID for canvas
+                productUid: "wall-art_wa_canvas_ccnv_canvas", // Full Gelato product UID for canvas based on their catalog
                 copies: item.quantity,
                 fileUrl: imageUrl,
                 metadata: {
@@ -187,27 +187,47 @@ exports.handler = async function(event, context) {
             throw new Error("No shipping address found in order");
         }
         
-        // Construct the Gelato order data
+        // Construct the Gelato order data according to v4 API documentation
         const gelatoOrderData = {
-            orderType: "dropship",
+            orderType: "order",
+            orderReferenceId: body.id.toString(),
+            customerReferenceId: body.customer ? body.customer.id.toString() : "guest-customer",
             currency: body.currency || "USD",
-            externalOrderId: body.id.toString(),
             items: lineItemsWithImages.map(item => ({
-                ...item,
-                recipient: recipient
-            }))
+                itemReferenceId: item.metadata.variantId.toString(),
+                productUid: "wall-art_wa_canvas_ccnv_canvas", // Valid product ID from Gelato catalog
+                files: [
+                    {
+                        type: "default",
+                        url: item.fileUrl
+                    }
+                ],
+                quantity: item.copies
+            })),
+            shipmentMethodUid: "express",
+            shippingAddress: {
+                firstName: body.shipping_address.first_name || "",
+                lastName: body.shipping_address.last_name || "",
+                addressLine1: body.shipping_address.address1,
+                addressLine2: body.shipping_address.address2 || "",
+                state: body.shipping_address.province,
+                city: body.shipping_address.city,
+                postCode: body.shipping_address.zip,
+                country: body.shipping_address.country_code,
+                email: body.email,
+                phone: body.shipping_address.phone || body.phone || ""
+            }
         };
         
         console.log("Sending to Gelato:", JSON.stringify(gelatoOrderData));
         console.log("Using Gelato API key (first 5 chars):", GELATO_API_KEY.substring(0, 5) + "...");
 
         // Test with a simpler Gelato API request first to verify authentication
-        // The API key format appears to be different than expected
-        // Try different authentication methods
-        const testAuthResponse = await fetch("https://api.gelato.com/v1/products", {
+        // Using the correct endpoint and headers based on Gelato docs
+        const testAuthResponse = await fetch("https://order.gelatoapis.com/v4/products", {
             method: "GET",
             headers: {
-                // Try without Bearer prefix
+                "Content-Type": "application/json",
                 "X-API-KEY": GELATO_API_KEY
             }
         });
@@ -220,8 +240,8 @@ exports.handler = async function(event, context) {
             console.log("Gelato API authentication successful!");
         }
         
-        // Send the order to Gelato
-        const gelatoResponse = await fetch("https://api.gelato.com/v1/orders", {
+        // Send the order to Gelato using the correct endpoint based on their documentation
+        const gelatoResponse = await fetch("https://order.gelatoapis.com/v4/orders", {
             method: "POST",
             headers: {
                 "Content-Type": "application/json",
