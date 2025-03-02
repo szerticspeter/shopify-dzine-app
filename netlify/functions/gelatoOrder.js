@@ -31,6 +31,18 @@ exports.handler = async function(event, context) {
     console.log("- REACT_APP_GELATO_API_KEY exists:", !!process.env.REACT_APP_GELATO_API_KEY);
     console.log("- Using API key:", !!GELATO_API_KEY);
     
+    // Log the actual API key for debugging (only the first few and last few characters)
+    if (GELATO_API_KEY && GELATO_API_KEY.length > 10) {
+        const start = GELATO_API_KEY.substring(0, 5);
+        const end = GELATO_API_KEY.substring(GELATO_API_KEY.length - 5);
+        console.log(`API key format check: ${start}...${end} (length: ${GELATO_API_KEY.length})`);
+        
+        // Check if API key contains suspicious characters
+        if (GELATO_API_KEY.includes(" ") || GELATO_API_KEY.includes("\n") || GELATO_API_KEY.includes("\r")) {
+            console.log("WARNING: API key contains whitespace characters!");
+        }
+    }
+    
     if (!GELATO_API_KEY) {
         console.error("Missing Gelato API key - please set GELATO_API_KEY in Netlify environment variables");
         return {
@@ -222,13 +234,17 @@ exports.handler = async function(event, context) {
         console.log("Sending to Gelato:", JSON.stringify(gelatoOrderData));
         console.log("Using Gelato API key (first 5 chars):", GELATO_API_KEY.substring(0, 5) + "...");
 
+        // Make sure API key doesn't have any whitespace or formatting issues
+        const cleanApiKey = GELATO_API_KEY.trim();
+        console.log("Using cleaned API key");
+        
         // Test with a simpler Gelato API request first to verify authentication
-        // Using the correct endpoint and headers based on Gelato docs
-        const testAuthResponse = await fetch("https://order.gelatoapis.com/v4/products", {
+        // Using the exact endpoint and header format that worked in Postman
+        console.log("Testing authentication with GET request to orders endpoint");
+        const testAuthResponse = await fetch("https://order.gelatoapis.com/v4/orders", {
             method: "GET",
             headers: {
-                "Content-Type": "application/json",
-                "X-API-KEY": GELATO_API_KEY
+                "X-API-KEY": cleanApiKey
             }
         });
         
@@ -240,12 +256,13 @@ exports.handler = async function(event, context) {
             console.log("Gelato API authentication successful!");
         }
         
-        // Send the order to Gelato using the correct endpoint based on their documentation
+        // Send the order to Gelato using the exact header format that worked in Postman
+        console.log("Sending order to Gelato API");
         const gelatoResponse = await fetch("https://order.gelatoapis.com/v4/orders", {
             method: "POST",
             headers: {
                 "Content-Type": "application/json",
-                "X-API-KEY": GELATO_API_KEY
+                "X-API-KEY": cleanApiKey
             },
             body: JSON.stringify(gelatoOrderData)
         });
