@@ -225,7 +225,7 @@ function App() {
           <div className="result-section">
             <img src={result.url} alt="Stylized result" />
             <button 
-              onClick={() => window.location.href = `/products/create?image=${result.url}`}
+              onClick={() => window.location.href = `/products/create?image=${encodeURIComponent(result.url)}`}
               className="create-product-button"
             >
               Create Canvas Product

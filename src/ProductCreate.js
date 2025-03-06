@@ -4,92 +4,51 @@ import { useLocation, useNavigate } from 'react-router-dom';
 function ProductCreate() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  const [productData, setProductData] = useState(null);
-  const [checkoutUrl, setCheckoutUrl] = useState(null);
+  const [imageUrl, setImageUrl] = useState(null);
   const location = useLocation();
   const navigate = useNavigate();
 
+  // The product URL from Gelato Personalization Studio
+  const GELATO_PRODUCT_URL = "https://ajucd9rvospe0pmm-89634177372.shopifypreview.com/products_preview?preview_key=5eb868d12eb48245bc1526c5761e64e4";
+
   useEffect(() => {
-    const createProduct = async () => {
-      try {
-        // Get image URL from the query parameters
-        const params = new URLSearchParams(location.search);
-        const imageUrl = params.get('image');
-        
-        if (!imageUrl) {
-          throw new Error('No image URL provided');
-        }
-
-        console.log('Creating product with image URL:', imageUrl);
-
-        // Call the Netlify function to create a Shopify product
-        const response = await fetch('/.netlify/functions/shopifyAuth', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({ imageUrl }),
-        });
-
-        const data = await response.json();
-        
-        if (!response.ok) {
-          throw new Error(data.error || 'Failed to create product');
-        }
-
-        console.log('Product created:', data);
-        
-        // Store the product data and checkout URL
-        setProductData(data.product);
-        setCheckoutUrl(data.checkoutUrl);
-        setLoading(false);
-      } catch (err) {
-        console.error('Error creating product:', err);
-        setError(err.message);
-        setLoading(false);
+    try {
+      // Get image URL from the query parameters
+      const params = new URLSearchParams(location.search);
+      const image = params.get('image');
+      
+      if (!image) {
+        throw new Error('No image URL provided');
       }
-    };
 
-    createProduct();
+      console.log('Received stylized image URL:', image);
+      setImageUrl(image);
+      setLoading(false);
+    } catch (err) {
+      console.error('Error processing image URL:', err);
+      setError(err.message);
+      setLoading(false);
+    }
   }, [location.search]);
+
+  // Automatically redirect to Gelato when image URL is available
+  useEffect(() => {
+    if (imageUrl) {
+      // Construct the Gelato URL with the image as a query parameter
+      const gelatoUrl = `${GELATO_PRODUCT_URL}?image=${encodeURIComponent(imageUrl)}`;
+      
+      // Redirect to Gelato
+      window.location.href = gelatoUrl;
+    }
+  }, [imageUrl]);
 
   // If there's an error, show it
   if (error) {
     return (
       <div className="error-container">
-        <h2>Error Creating Product</h2>
+        <h2>Error Processing Image</h2>
         <p>{error}</p>
         <button onClick={() => navigate('/')}>Back to Home</button>
-      </div>
-    );
-  }
-
-  // If product is created successfully, show checkout link
-  if (productData && checkoutUrl) {
-    return (
-      <div className="success-container">
-        <h2>Your Canvas Product is Ready!</h2>
-        <p>Your custom canvas print has been created successfully.</p>
-        
-        <div className="product-details">
-          <h3>Product Details:</h3>
-          <p><strong>Title:</strong> {productData.product.title}</p>
-          <p><strong>Price:</strong> ${productData.product.variants[0].price}</p>
-        </div>
-        
-        {/* Open link in new tab to avoid cross-origin issues */}
-        <a 
-          href={checkoutUrl}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="checkout-button"
-        >
-          Proceed to Checkout
-        </a>
-        
-        <button onClick={() => navigate('/')} className="back-button">
-          Create Another Canvas
-        </button>
       </div>
     );
   }
@@ -97,8 +56,15 @@ function ProductCreate() {
   // Show loading state while processing
   return (
     <div className="loading-container">
-      <h2>Creating Your Canvas Product...</h2>
-      <p>Please wait while we prepare your custom canvas.</p>
+      <h2>Preparing Your Canvas Product...</h2>
+      <p>Please wait while we redirect you to the Gelato Personalization Studio.</p>
+      
+      {/* Hidden form with the image URL that will be submitted to Gelato */}
+      {imageUrl && (
+        <form id="gelatoForm" style={{ display: 'none' }} action={GELATO_PRODUCT_URL} method="get">
+          <input type="hidden" name="properties[Personalized Image]" value={imageUrl} />
+        </form>
+      )}
     </div>
   );
 }
