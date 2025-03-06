@@ -8,8 +8,11 @@ function ProductCreate() {
   const location = useLocation();
   const navigate = useNavigate();
 
-  // The product URL from Gelato Personalization Studio
-  const GELATO_PRODUCT_URL = "https://ajucd9rvospe0pmm-89634177372.shopifypreview.com/products_preview?preview_key=5eb868d12eb48245bc1526c5761e64e4";
+  // The actual published product URL in your Shopify store
+  const GELATO_PRODUCT_URL = "https://g2pgc1-08.myshopify.com/products/test-customizable-canvas";
+  
+  // Set to false now that we have a real product URL
+  const TEST_MODE = false;
 
   useEffect(() => {
     try {
@@ -31,14 +34,20 @@ function ProductCreate() {
     }
   }, [location.search]);
 
-  // Automatically redirect to Gelato when image URL is available
+  // Handle the image URL when available
   useEffect(() => {
     if (imageUrl) {
-      // Construct the Gelato URL with the image as a query parameter
-      const gelatoUrl = `${GELATO_PRODUCT_URL}?image=${encodeURIComponent(imageUrl)}`;
-      
-      // Redirect to Gelato
-      window.location.href = gelatoUrl;
+      if (TEST_MODE) {
+        // In test mode, we'll just stay on this page and show the image
+        console.log("Test mode active: Not redirecting to Gelato");
+        setLoading(false);
+      } else {
+        // Construct the Gelato URL with the image as a query parameter
+        const gelatoUrl = `${GELATO_PRODUCT_URL}?image=${encodeURIComponent(imageUrl)}`;
+        
+        // Redirect to Gelato
+        window.location.href = gelatoUrl;
+      }
     }
   }, [imageUrl]);
 
@@ -53,11 +62,69 @@ function ProductCreate() {
     );
   }
 
-  // Show loading state while processing
+  // Show test mode or loading state
+  if (TEST_MODE && imageUrl) {
+    return (
+      <div className="success-container">
+        <h2>Your Image is Ready for Personalization</h2>
+        <p>Here's the stylized image that would be sent to the Gelato product page:</p>
+        
+        <div className="image-preview" style={{ margin: '20px 0' }}>
+          <img 
+            src={imageUrl} 
+            alt="Stylized result" 
+            style={{ maxWidth: '100%', maxHeight: '400px' }} 
+          />
+        </div>
+        
+        <p>The image URL has been copied below:</p>
+        <textarea 
+          readOnly 
+          value={imageUrl}
+          style={{ width: '100%', padding: '10px', marginBottom: '20px' }}
+          rows={3}
+        />
+        
+        <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+          <a 
+            href={`${GELATO_PRODUCT_URL}?image=${encodeURIComponent(imageUrl)}`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="checkout-button"
+            style={{ 
+              backgroundColor: '#4CAF50', 
+              color: 'white', 
+              padding: '10px 20px',
+              textDecoration: 'none',
+              borderRadius: '4px'
+            }}
+          >
+            Open in Gelato (New Tab)
+          </a>
+          
+          <button 
+            onClick={() => navigate('/')} 
+            className="back-button"
+            style={{ 
+              backgroundColor: '#f1f1f1', 
+              padding: '10px 20px',
+              border: 'none',
+              borderRadius: '4px',
+              cursor: 'pointer'
+            }}
+          >
+            Create Another Image
+          </button>
+        </div>
+      </div>
+    );
+  }
+  
+  // Default loading state
   return (
     <div className="loading-container">
       <h2>Preparing Your Canvas Product...</h2>
-      <p>Please wait while we redirect you to the Gelato Personalization Studio.</p>
+      <p>Please wait while we redirect you to the customization page.</p>
       
       {/* Hidden form with the image URL that will be submitted to Gelato */}
       {imageUrl && (
