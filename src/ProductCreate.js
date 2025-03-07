@@ -11,8 +11,8 @@ function ProductCreate() {
   // The actual published product URL in your Shopify store
   const SHOPIFY_PRODUCT_URL = "https://g2pgc1-08.myshopify.com/products/test-product-for-in-storepage-personalization";
   
-  // Set to false to enable auto-redirect with image injection script
-  const TEST_MODE = false;
+  // Set to true to see test options and debug
+  const TEST_MODE = true;
   
   // Test image URL for debugging (Unsplash image)
   const TEST_IMAGE_URL = "https://plus.unsplash.com/premium_photo-1664474619075-644dd191935f?q=80&w=1469&auto=format&fit=crop&ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D";
@@ -143,33 +143,29 @@ function ProductCreate() {
         // Construct the Shopify product URL
         const shopifyProductUrl = `${SHOPIFY_PRODUCT_URL}`;
         
-        // Create a placeholder HTML with the injection script
-        const html = `
-          <!DOCTYPE html>
-          <html>
-            <head>
-              <title>Redirecting to Shopify...</title>
-              <script>
-                ${injectionScript}
-                // Redirect after a short delay to ensure script is loaded
-                setTimeout(function() {
-                  window.location.href = "${shopifyProductUrl}";
-                }, 100);
-              </script>
-            </head>
-            <body>
-              <h1>Redirecting to product page...</h1>
-              <p>You will be redirected in a moment. If you are not redirected, <a href="${shopifyProductUrl}">click here</a>.</p>
-            </body>
-          </html>
+        // For direct redirection to Shopify
+        const shopifyRedirectUrl = `${SHOPIFY_PRODUCT_URL}`;
+        
+        // Create a script element to inject into the product page
+        // We'll store the image URL in sessionStorage first
+        const scriptContent = `
+          // Store image URL in sessionStorage for the product page to use
+          sessionStorage.setItem('styleImageUrl', '${imageUrl}');
+          console.log('Image URL stored for injection:', '${imageUrl}');
+          
+          // Now redirect to Shopify
+          window.location.href = '${shopifyRedirectUrl}';
         `;
         
-        // Create a Blob with the HTML
-        const blob = new Blob([html], { type: 'text/html' });
-        const redirectUrl = URL.createObjectURL(blob);
+        // Execute the script directly
+        const scriptElement = document.createElement('script');
+        scriptElement.textContent = scriptContent;
+        document.head.appendChild(scriptElement);
         
-        // Open the redirect page in a new window (to avoid CORS issues)
-        window.location.href = redirectUrl;
+        // As a backup, also redirect after a short delay
+        setTimeout(() => {
+          window.location.href = shopifyRedirectUrl;
+        }, 500);
       }
     }
   }, [imageUrl]);
@@ -205,34 +201,13 @@ function ProductCreate() {
         <div style={{ marginBottom: '20px' }}>
           <button 
             onClick={() => {
-              const testScript = createImageInjectionScript(TEST_IMAGE_URL);
               console.log("Testing with Unsplash image URL");
               
-              // Create a blob URL with the test script
-              const html = `
-                <!DOCTYPE html>
-                <html>
-                  <head>
-                    <title>Testing Image Injection</title>
-                    <script>
-                      ${testScript}
-                      // Redirect after a short delay
-                      setTimeout(function() {
-                        window.location.href = "${SHOPIFY_PRODUCT_URL}";
-                      }, 100);
-                    </script>
-                  </head>
-                  <body>
-                    <h1>Testing image injection with Unsplash image</h1>
-                    <p>Redirecting to Shopify...</p>
-                  </body>
-                </html>
-              `;
+              // Store the test image URL in sessionStorage
+              sessionStorage.setItem('styleImageUrl', TEST_IMAGE_URL);
               
-              const blob = new Blob([html], { type: 'text/html' });
-              const redirectUrl = URL.createObjectURL(blob);
-              
-              window.open(redirectUrl, '_blank');
+              // Open the Shopify product page in a new tab
+              window.open(SHOPIFY_PRODUCT_URL, '_blank');
             }}
             style={{
               backgroundColor: '#9C27B0',
