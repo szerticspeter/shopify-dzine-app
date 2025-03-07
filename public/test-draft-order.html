@@ -101,7 +101,9 @@
             }
             
             try {
-                const response = await fetch('/.netlify/functions/createDraftOrder.mjs', {
+                resultDiv.textContent = 'Sending request to /.netlify/functions/createDraftOrder-cjs...';
+                
+                const response = await fetch('/.netlify/functions/createDraftOrder-cjs', {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json'
@@ -109,7 +111,23 @@
                     body: JSON.stringify(requestData)
                 });
                 
-                const data = await response.json();
+                console.log('Response status:', response.status);
+                console.log('Response headers:', response.headers);
+                
+                // Get the raw text first to debug
+                const responseText = await response.text();
+                console.log('Raw response:', responseText);
+                
+                // Try parsing JSON if possible
+                let data;
+                try {
+                    data = JSON.parse(responseText);
+                    console.log('Parsed data:', data);
+                } catch (parseError) {
+                    console.error('Error parsing JSON:', parseError);
+                    resultDiv.textContent = `Error parsing response as JSON. Raw response:\n\n${responseText.substring(0, 500)}${responseText.length > 500 ? '...' : ''}`;
+                    return;
+                }
                 
                 if (response.ok) {
                     resultDiv.textContent = JSON.stringify(data, null, 2);
