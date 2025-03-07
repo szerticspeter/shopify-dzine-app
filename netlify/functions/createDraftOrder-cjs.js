@@ -42,7 +42,7 @@ exports.handler = async function(event, context) {
         };
     }
 
-    const { imageUrl, customerId = null, title = "Custom Canvas Print", price = "49.99" } = body;
+    const { imageUrl, customerId = null, title = "Custom Canvas Print", price = "49.99", productType = "canvas" } = body;
 
     if (!imageUrl) {
         return {
@@ -53,6 +53,7 @@ exports.handler = async function(event, context) {
     }
 
     console.log("Creating draft order with image:", imageUrl);
+    console.log("Product type:", productType);
 
     const url = `https://${SHOPIFY_STORE_DOMAIN}/admin/api/2023-10/draft_orders.json`;
 
@@ -67,7 +68,7 @@ exports.handler = async function(event, context) {
                     requires_shipping: true
                 }
             ],
-            note: `Custom image URL: ${imageUrl}`,
+            note: `Custom image URL: ${imageUrl} | Product Type: ${productType}`,
             note_attributes: [
                 {
                     name: "final_image_url",
@@ -76,6 +77,10 @@ exports.handler = async function(event, context) {
                 {
                     name: "dzine_ai_stylized",
                     value: "true"
+                },
+                {
+                    name: "product_type",
+                    value: productType
                 }
             ]
         }

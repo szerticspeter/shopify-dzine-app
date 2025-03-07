@@ -45,6 +45,48 @@
             background-color: #f9f9f9;
             white-space: pre-wrap;
         }
+        .product-preview {
+            margin-top: 20px;
+            padding: 15px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            background-color: #f9f9f9;
+            text-align: center;
+        }
+        .canvas-preview {
+            position: relative;
+            width: 400px;
+            height: 300px;
+            margin: 0 auto;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+            border: 15px solid #f3f3f3;
+            background-color: white;
+        }
+        .canvas-preview img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+        .canvas-frame {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            border: 1px solid #ddd;
+            box-sizing: border-box;
+            pointer-events: none;
+        }
+        .canvas-shadow {
+            position: absolute;
+            width: 100%;
+            height: 10px;
+            bottom: -25px;
+            left: 5px;
+            background: rgba(0,0,0,0.1);
+            border-radius: 50%;
+            filter: blur(5px);
+        }
     </style>
 </head>
 <body>
@@ -54,6 +96,49 @@
     <div class="form-group">
         <label for="imageUrl">Image URL:</label>
         <input type="text" id="imageUrl" value="https://plus.unsplash.com/premium_photo-1664474619075-644dd191935f?q=80&w=1469&auto=format&fit=crop&ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D">
+    </div>
+    
+    <div class="form-group">
+        <label>Product Type:</label>
+        <div style="display: flex; gap: 10px;">
+            <label style="display: inline-flex; align-items: center; cursor: pointer;">
+                <input type="radio" name="productType" value="canvas" checked> 
+                <span style="margin-left: 5px;">Canvas Print</span>
+            </label>
+            <label style="display: inline-flex; align-items: center; cursor: pointer;">
+                <input type="radio" name="productType" value="poster"> 
+                <span style="margin-left: 5px;">Framed Poster</span>
+            </label>
+            <label style="display: inline-flex; align-items: center; cursor: pointer;">
+                <input type="radio" name="productType" value="metal"> 
+                <span style="margin-left: 5px;">Metal Print</span>
+            </label>
+        </div>
+    </div>
+
+    <div class="product-preview" id="productPreview">
+        <h3>Product Preview</h3>
+        <p>This is how your custom product will look:</p>
+        
+        <!-- Canvas Print Preview -->
+        <div class="canvas-preview" id="canvasPreview">
+            <img id="previewImageCanvas" src="" alt="Custom Canvas Preview">
+            <div class="canvas-frame"></div>
+            <div class="canvas-shadow"></div>
+        </div>
+        
+        <!-- Framed Poster Preview -->
+        <div class="canvas-preview" id="posterPreview" style="display: none; border: 20px solid #222; background-color: white;">
+            <div style="padding: 10px; border: 5px solid white; height: calc(100% - 30px); box-sizing: border-box;">
+                <img id="previewImagePoster" src="" alt="Custom Poster Preview" style="width: 100%; height: 100%; object-fit: cover;">
+            </div>
+        </div>
+        
+        <!-- Metal Print Preview -->
+        <div class="canvas-preview" id="metalPreview" style="display: none; border: 3px solid #888; background-color: white;">
+            <img id="previewImageMetal" src="" alt="Custom Metal Print Preview">
+            <div style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: linear-gradient(45deg, rgba(255,255,255,0.1), rgba(255,255,255,0.3)); pointer-events: none;"></div>
+        </div>
     </div>
 
     <div class="form-group">
@@ -77,11 +162,87 @@
     <div class="result" id="invoiceLink" style="display: none;"></div>
 
     <script>
+        // Function to show the selected product preview
+        function updateProductType() {
+            const selectedType = document.querySelector('input[name="productType"]:checked').value;
+            
+            // Hide all previews
+            document.getElementById('canvasPreview').style.display = 'none';
+            document.getElementById('posterPreview').style.display = 'none';
+            document.getElementById('metalPreview').style.display = 'none';
+            
+            // Show selected preview
+            document.getElementById(`${selectedType}Preview`).style.display = 'block';
+            
+            // Update product title based on selected type
+            const titleInput = document.getElementById('title');
+            const currentTitle = titleInput.value;
+            
+            // Only update if title matches one of our defaults
+            if (currentTitle === 'Custom Canvas Print' || 
+                currentTitle === 'Custom Framed Poster' || 
+                currentTitle === 'Custom Metal Print') {
+                
+                if (selectedType === 'canvas') {
+                    titleInput.value = 'Custom Canvas Print';
+                } else if (selectedType === 'poster') {
+                    titleInput.value = 'Custom Framed Poster';
+                } else if (selectedType === 'metal') {
+                    titleInput.value = 'Custom Metal Print';
+                }
+            }
+        }
+        
+        // Function to update all preview images
+        function updatePreview() {
+            const imageUrl = document.getElementById('imageUrl').value;
+            
+            if (imageUrl) {
+                // Update all preview images
+                document.getElementById('previewImageCanvas').src = imageUrl;
+                document.getElementById('previewImagePoster').src = imageUrl;
+                document.getElementById('previewImageMetal').src = imageUrl;
+                
+                document.getElementById('productPreview').style.display = 'block';
+            } else {
+                document.getElementById('productPreview').style.display = 'none';
+            }
+        }
+        
+        // Initialize preview with the default image URL
+        document.addEventListener('DOMContentLoaded', function() {
+            updatePreview();
+            
+            // Add event listeners for product type radio buttons
+            const radioButtons = document.querySelectorAll('input[name="productType"]');
+            radioButtons.forEach(button => {
+                button.addEventListener('change', updateProductType);
+            });
+        });
+        
+        // Update preview when image URL changes
+        document.getElementById('imageUrl').addEventListener('input', updatePreview);
+        
+        // Validate image URL when it loses focus
+        document.getElementById('imageUrl').addEventListener('blur', function() {
+            const imageUrl = this.value;
+            
+            // Simple validation - check if image loads
+            if (imageUrl) {
+                const testImg = new Image();
+                testImg.onerror = function() {
+                    alert('Could not load image. Please check the URL and try again.');
+                };
+                testImg.src = imageUrl;
+            }
+        });
+        
         document.getElementById('createDraftOrder').addEventListener('click', async () => {
             const imageUrl = document.getElementById('imageUrl').value;
             const title = document.getElementById('title').value;
             const price = document.getElementById('price').value;
             const customerId = document.getElementById('customerId').value;
+            const productType = document.querySelector('input[name="productType"]:checked').value;
             
             const resultDiv = document.getElementById('result');
             const invoiceLinkDiv = document.getElementById('invoiceLink');
@@ -93,7 +254,8 @@
             const requestData = {
                 imageUrl,
                 title,
-                price
+                price,
+                productType
             };
             
             if (customerId) {
