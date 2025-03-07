@@ -1,0 +1,267 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test Image Upload to Shopify</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            line-height: 1.6;
+        }
+        h1 {
+            color: #2a2a2a;
+            border-bottom: 1px solid #eaeaea;
+            padding-bottom: 10px;
+        }
+        .test-container {
+            background-color: #f9f9f9;
+            border: 1px solid #e1e1e1;
+            border-radius: 5px;
+            padding: 20px;
+            margin: 20px 0;
+        }
+        .url-input {
+            width: 100%;
+            padding: 10px;
+            margin: 10px 0;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+        }
+        .test-button {
+            background-color: #5c6ac4;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            padding: 10px 20px;
+            cursor: pointer;
+            font-size: 16px;
+            margin-right: 10px;
+        }
+        .test-button:hover {
+            background-color: #4959bd;
+        }
+    </style>
+</head>
+<body>
+    <h1>Test Image Upload to Shopify</h1>
+    
+    <div class="test-container">
+        <h2>Test with Unsplash Image</h2>
+        <p>This will test if we can simulate uploading an image from an external URL to your Shopify product customizer.</p>
+        
+        <h3>Image URL to Test</h3>
+        <input type="text" id="imageUrl" class="url-input" value="https://images.unsplash.com/photo-1579783902614-a3fb3927b6a5?ixlib=rb-4.0.3&auto=format&fit=crop&w=2245&q=80">
+        
+        <h3>Shopify Product URL</h3>
+        <input type="text" id="productUrl" class="url-input" value="https://g2pgc1-08.myshopify.com/products/test-product-for-in-storepage-personalization">
+        
+        <div style="margin-top: 20px;">
+            <button id="testButton" class="test-button">Test Image Upload</button>
+            <button id="directButton" class="test-button" style="background-color: #47c1bf;">Go to Product Page</button>
+        </div>
+        
+        <div id="result" style="margin-top: 20px;"></div>
+    </div>
+    
+    <h2>Instructions</h2>
+    <ol>
+        <li>Enter the URL of an image you want to test (default is an Unsplash image)</li>
+        <li>Confirm the Shopify product URL is correct</li>
+        <li>Click "Test Image Upload" to open a new tab with our injection script</li>
+        <li>Watch the console (F12) to see if the image upload simulation works</li>
+    </ol>
+    
+    <h2>How It Works</h2>
+    <p>When you click "Test Image Upload", we:</p>
+    <ol>
+        <li>Store the image URL in sessionStorage</li>
+        <li>Open the Shopify product page in a new tab</li>
+        <li>The script tries to find the file upload element and simulate an upload</li>
+    </ol>
+
+    <script>
+        document.getElementById('testButton').addEventListener('click', function() {
+            const imageUrl = document.getElementById('imageUrl').value.trim();
+            const productUrl = document.getElementById('productUrl').value.trim();
+            
+            if (!imageUrl || !productUrl) {
+                alert('Please enter both an image URL and a product URL');
+                return;
+            }
+
+            // Store in sessionStorage
+            sessionStorage.setItem('styleImageUrl', imageUrl);
+            
+            // Create HTML with the injection script
+            const injectionScript = `
+                // Wait for the DOM to be fully loaded
+                document.addEventListener('DOMContentLoaded', function() {
+                    // Get the image URL from sessionStorage
+                    const imageUrl = sessionStorage.getItem('styleImageUrl');
+                    console.log('Image URL for injection:', imageUrl);
+                    
+                    if (!imageUrl) {
+                        console.error('No image URL found in sessionStorage');
+                        return;
+                    }
+                    
+                    // Function to wait for an element to appear
+                    function waitForElement(selector, maxWaitTime = 10000) {
+                        return new Promise((resolve, reject) => {
+                            const startTime = Date.now();
+                            
+                            function checkElement() {
+                                const element = document.querySelector(selector);
+                                
+                                if (element) {
+                                    console.log('Found element:', selector);
+                                    resolve(element);
+                                    return;
+                                }
+                                
+                                if (Date.now() - startTime > maxWaitTime) {
+                                    reject(new Error(\`Element not found after \${maxWaitTime}ms: \${selector}\`));
+                                    return;
+                                }
+                                
+                                setTimeout(checkElement, 100);
+                            }
+                            
+                            checkElement();
+                        });
+                    }
+                    
+                    // Main function to handle image injection
+                    async function injectImage() {
+                        try {
+                            console.log('Looking for upload elements...');
+                            
+                            // Try different selectors for the upload button/input
+                            const selectors = [
+                                'input[type="file"]',
+                                '.personalization-file-upload button', 
+                                '[data-testid="file-upload-button"]', 
+                                'button[aria-label="Upload Image"]',
+                                '.personalization button',
+                                '[data-action="upload"]'
+                            ];
+                            
+                            let uploadElement = null;
+                            
+                            // Try each selector
+                            for (const selector of selectors) {
+                                try {
+                                    console.log('Trying selector:', selector);
+                                    uploadElement = await waitForElement(selector, 3000);
+                                    if (uploadElement) {
+                                        console.log('Found element with selector:', selector);
+                                        break;
+                                    }
+                                } catch (e) {
+                                    console.log('Selector not found:', selector);
+                                }
+                            }
+                            
+                            if (!uploadElement) {
+                                throw new Error('Could not find any upload element');
+                            }
+                            
+                            // Check if it's a file input or button
+                            const isInput = uploadElement.tagName.toLowerCase() === 'input';
+                            
+                            if (!isInput) {
+                                console.log('Found upload button, clicking it...');
+                                uploadElement.click();
+                                
+                                // Now wait for the file input to appear
+                                const fileInput = await waitForElement('input[type="file"]', 5000);
+                                await processFileInput(fileInput);
+                            } else {
+                                console.log('Found file input directly');
+                                await processFileInput(uploadElement);
+                            }
+                        } catch (error) {
+                            console.error('Error during image injection:', error);
+                            alert('Could not automatically upload image: ' + error.message);
+                        }
+                    }
+                    
+                    // Function to process a file input element
+                    async function processFileInput(fileInput) {
+                        try {
+                            console.log('Fetching image from URL:', imageUrl);
+                            const response = await fetch(imageUrl);
+                            if (!response.ok) {
+                                throw new Error(\`Failed to fetch image: \${response.status} \${response.statusText}\`);
+                            }
+                            
+                            const blob = await response.blob();
+                            console.log('Image fetched successfully, size:', blob.size);
+                            
+                            // Create a File object
+                            const fileName = 'stylized-image.jpg';
+                            const file = new File([blob], fileName, { type: 'image/jpeg' });
+                            
+                            // Create a FileList-like object
+                            const fileList = {
+                                0: file,
+                                length: 1,
+                                item: (index) => index === 0 ? file : null
+                            };
+                            
+                            // Override the files property
+                            Object.defineProperty(fileInput, 'files', {
+                                value: fileList,
+                                writable: false
+                            });
+                            
+                            // Dispatch change event
+                            const event = new Event('change', { bubbles: true });
+                            fileInput.dispatchEvent(event);
+                            
+                            console.log('Successfully injected image into file input');
+                            sessionStorage.removeItem('styleImageUrl');
+                        } catch (error) {
+                            console.error('Error processing file input:', error);
+                            throw error;
+                        }
+                    }
+                    
+                    // Start the injection process
+                    injectImage();
+                });
+            `;
+            
+            // Open a new window and write the script directly
+            const newWindow = window.open(productUrl, '_blank');
+            if (newWindow) {
+                setTimeout(() => {
+                    try {
+                        // Inject our script
+                        newWindow.eval(injectionScript);
+                    } catch (e) {
+                        console.error('Failed to inject script:', e);
+                    }
+                }, 1000);
+            } else {
+                alert('Popup blocked! Please allow popups for this site to test the image upload.');
+            }
+            
+            document.getElementById('result').innerHTML = `<p>Test started! Check the console in the new tab (press F12) to see if the image upload worked.</p>`;
+        });
+        
+        document.getElementById('directButton').addEventListener('click', function() {
+            const productUrl = document.getElementById('productUrl').value.trim();
+            if (productUrl) {
+                window.open(productUrl, '_blank');
+            } else {
+                alert('Please enter a product URL');
+            }
+        });
+    </script>
+</body>
+</html>
