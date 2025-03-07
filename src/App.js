@@ -72,15 +72,21 @@ function App() {
         // MOCK IMPLEMENTATION FOR TESTING
         // Skip Dzine.ai API calls and just use the uploaded image directly
         
-        // Create a URL for the uploaded image
-        const imageUrl = URL.createObjectURL(uploadedImage);
-        console.log('Mock processing - using original image:', imageUrl);
+        // Convert the uploaded image to a Base64 data URL
+        const reader = new FileReader();
+        reader.readAsDataURL(uploadedImage);
         
-        // Simulate a short processing delay
-        await new Promise(resolve => setTimeout(resolve, 1500));
-        
-        // Set the result to the original image URL
-        setResult({ url: imageUrl });
+        // When the reader is done, set the result
+        reader.onloadend = async () => {
+          const base64Image = reader.result;
+          console.log('Mock processing - created Base64 image');
+          
+          // Simulate a short processing delay
+          await new Promise(resolve => setTimeout(resolve, 1500));
+          
+          // Set the result to the Base64 data URL
+          setResult({ url: base64Image });
+        };
         
         /* REAL IMPLEMENTATION COMMENTED OUT
         // First, upload the image

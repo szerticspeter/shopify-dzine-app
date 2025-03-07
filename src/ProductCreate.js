@@ -16,19 +16,25 @@ function ProductCreate() {
 
   useEffect(() => {
     try {
-      // Get image URL from the query parameters
+      // Get image URL or Base64 data from the query parameters
       const params = new URLSearchParams(location.search);
       const image = params.get('image');
       
       if (!image) {
-        throw new Error('No image URL provided');
+        throw new Error('No image data provided');
       }
 
-      console.log('Received stylized image URL:', image);
+      // Check if it's a Base64 data URL
+      if (image.startsWith('data:image/')) {
+        console.log('Received Base64 image data');
+      } else {
+        console.log('Received image URL:', image);
+      }
+      
       setImageUrl(image);
       setLoading(false);
     } catch (err) {
-      console.error('Error processing image URL:', err);
+      console.error('Error processing image data:', err);
       setError(err.message);
       setLoading(false);
     }
@@ -85,7 +91,7 @@ function ProductCreate() {
           rows={3}
         />
         
-        <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', flexWrap: 'wrap', gap: '10px' }}>
           <a 
             href={`${SHOPIFY_PRODUCT_URL}?image=${encodeURIComponent(imageUrl)}`}
             target="_blank"
@@ -100,6 +106,22 @@ function ProductCreate() {
             }}
           >
             Open in Shopify (New Tab)
+          </a>
+          
+          {/* Download Image Button - converts Base64 to downloadable file */}
+          <a 
+            href={imageUrl}
+            download="stylized-image.jpg"
+            className="download-button"
+            style={{ 
+              backgroundColor: '#2196F3', 
+              color: 'white', 
+              padding: '10px 20px',
+              textDecoration: 'none',
+              borderRadius: '4px'
+            }}
+          >
+            Download Image
           </a>
           
           <button 
