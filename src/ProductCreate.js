@@ -9,10 +9,10 @@ function ProductCreate() {
   const navigate = useNavigate();
 
   // The actual published product URL in your Shopify store
-  const GELATO_PRODUCT_URL = "https://g2pgc1-08.myshopify.com/products/test-product-for-in-storepage-personalization";
+  const SHOPIFY_PRODUCT_URL = "https://g2pgc1-08.myshopify.com/products/test-product-for-in-storepage-personalization";
   
-  // Set to false now that we have a real product URL
-  const TEST_MODE = false;
+  // Set to true to verify the flow and image URL without redirecting
+  const TEST_MODE = true;
 
   useEffect(() => {
     try {
@@ -43,7 +43,7 @@ function ProductCreate() {
         setLoading(false);
       } else {
         // Construct the Shopify product URL with the image as a query parameter for in-store personalization
-        const shopifyProductUrl = `${GELATO_PRODUCT_URL}?image=${encodeURIComponent(imageUrl)}`;
+        const shopifyProductUrl = `${SHOPIFY_PRODUCT_URL}?image=${encodeURIComponent(imageUrl)}`;
         
         // Redirect to Shopify product page
         window.location.href = shopifyProductUrl;
@@ -87,7 +87,7 @@ function ProductCreate() {
         
         <div style={{ display: 'flex', justifyContent: 'space-between' }}>
           <a 
-            href={`${GELATO_PRODUCT_URL}?image=${encodeURIComponent(imageUrl)}`}
+            href={`${SHOPIFY_PRODUCT_URL}?image=${encodeURIComponent(imageUrl)}`}
             target="_blank"
             rel="noopener noreferrer"
             className="checkout-button"
@@ -128,7 +128,7 @@ function ProductCreate() {
       
       {/* Hidden form with the image URL that will be submitted to Shopify */}
       {imageUrl && (
-        <form id="shopifyForm" style={{ display: 'none' }} action={GELATO_PRODUCT_URL} method="get">
+        <form id="shopifyForm" style={{ display: 'none' }} action={SHOPIFY_PRODUCT_URL} method="get">
           <input type="hidden" name="image" value={imageUrl} />
         </form>
       )}
