@@ -1,5 +1,5 @@
-// Import node-fetch if using Node.js < v18
-const fetch = (...args) => import('node-fetch').then(({default: fetch}) => fetch(...args));
+// Use node-fetch for Node.js compatibility
+const fetch = require('node-fetch');
 
 exports.handler = async function(event, context) {
     console.log("Creating Shopify webhook");
