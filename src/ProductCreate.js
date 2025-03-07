@@ -9,7 +9,7 @@ function ProductCreate() {
   const navigate = useNavigate();
 
   // The actual published product URL in your Shopify store
-  const GELATO_PRODUCT_URL = "https://g2pgc1-08.myshopify.com/products/test-customizable-canvas";
+  const GELATO_PRODUCT_URL = "https://g2pgc1-08.myshopify.com/products/test-product-for-in-storepage-personalization";
   
   // Set to false now that we have a real product URL
   const TEST_MODE = false;
@@ -39,14 +39,14 @@ function ProductCreate() {
     if (imageUrl) {
       if (TEST_MODE) {
         // In test mode, we'll just stay on this page and show the image
-        console.log("Test mode active: Not redirecting to Gelato");
+        console.log("Test mode active: Not redirecting to Shopify product page");
         setLoading(false);
       } else {
-        // Construct the Gelato URL with the image as a query parameter
-        const gelatoUrl = `${GELATO_PRODUCT_URL}?image=${encodeURIComponent(imageUrl)}`;
+        // Construct the Shopify product URL with the image as a query parameter for in-store personalization
+        const shopifyProductUrl = `${GELATO_PRODUCT_URL}?image=${encodeURIComponent(imageUrl)}`;
         
-        // Redirect to Gelato
-        window.location.href = gelatoUrl;
+        // Redirect to Shopify product page
+        window.location.href = shopifyProductUrl;
       }
     }
   }, [imageUrl]);
@@ -99,7 +99,7 @@ function ProductCreate() {
               borderRadius: '4px'
             }}
           >
-            Open in Gelato (New Tab)
+            Open in Shopify (New Tab)
           </a>
           
           <button 
@@ -126,10 +126,10 @@ function ProductCreate() {
       <h2>Preparing Your Canvas Product...</h2>
       <p>Please wait while we redirect you to the customization page.</p>
       
-      {/* Hidden form with the image URL that will be submitted to Gelato */}
+      {/* Hidden form with the image URL that will be submitted to Shopify */}
       {imageUrl && (
-        <form id="gelatoForm" style={{ display: 'none' }} action={GELATO_PRODUCT_URL} method="get">
-          <input type="hidden" name="properties[Personalized Image]" value={imageUrl} />
+        <form id="shopifyForm" style={{ display: 'none' }} action={GELATO_PRODUCT_URL} method="get">
+          <input type="hidden" name="image" value={imageUrl} />
         </form>
       )}
     </div>
