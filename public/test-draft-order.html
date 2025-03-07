@@ -119,10 +119,14 @@
                         invoiceLinkDiv.innerHTML = `<p>Complete your order here:</p><a href="${data.invoiceUrl}" target="_blank">Open Draft Order Invoice</a>`;
                     }
                 } else {
-                    resultDiv.textContent = `Error: ${data.error || 'Unknown error'}`;
+                    resultDiv.textContent = `Error: ${data.error || 'Unknown error'}\n\nFull response: ${JSON.stringify(data, null, 2)}`;
+                    
+                    // Display detailed error info
+                    console.error("API Error:", data);
                 }
             } catch (error) {
                 resultDiv.textContent = `Error: ${error.message}`;
+                console.error("Request Error:", error);
             }
         });
     </script>

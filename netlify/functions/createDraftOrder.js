@@ -56,7 +56,7 @@ exports.handler = async function(event, context) {
 
     const url = `https://${SHOPIFY_STORE_DOMAIN}/admin/api/2023-10/draft_orders.json`;
 
-    // Create the draft order data
+    // Create the draft order data - simplifying the approach for testing
     const draftOrderData = {
         draft_order: {
             line_items: [
@@ -64,19 +64,20 @@ exports.handler = async function(event, context) {
                     title: title,
                     price: price,
                     quantity: 1,
-                    properties: [
-                        {
-                            name: "final_image_url",
-                            value: imageUrl
-                        },
-                        {
-                            name: "dzine_ai_stylized",
-                            value: "true"
-                        }
-                    ]
+                    requires_shipping: true
                 }
             ],
-            use_customer_default_address: true
+            note: `Custom image URL: ${imageUrl}`,
+            note_attributes: [
+                {
+                    name: "final_image_url",
+                    value: imageUrl
+                },
+                {
+                    name: "dzine_ai_stylized",
+                    value: "true"
+                }
+            ]
         }
     };
 
@@ -84,6 +85,8 @@ exports.handler = async function(event, context) {
     if (customerId) {
         draftOrderData.draft_order.customer = { id: customerId };
     }
+    
+    console.log("Draft order request data:", JSON.stringify(draftOrderData, null, 2));
 
     try {
         if (!SHOPIFY_ACCESS_TOKEN) {
@@ -92,6 +95,7 @@ exports.handler = async function(event, context) {
 
         console.log("Using token:", SHOPIFY_ACCESS_TOKEN ? "Token exists" : "Token missing");
         
+        console.log("Sending request to: ", url);
         const response = await fetch(url, {
             method: "POST",
             headers: {
@@ -101,12 +105,23 @@ exports.handler = async function(event, context) {
             body: JSON.stringify(draftOrderData)
         });
 
+        console.log("Response status:", response.status);
+        
+        const responseBody = await response.text();
+        console.log("Response body:", responseBody);
+        
         if (!response.ok) {
-            const errorText = await response.text();
-            throw new Error(`Shopify API error: ${response.status} - ${errorText}`);
+            throw new Error(`Shopify API error: ${response.status} - ${responseBody}`);
         }
 
-        const data = await response.json();
+        // Parse the response
+        let data;
+        try {
+            data = JSON.parse(responseBody);
+        } catch (e) {
+            throw new Error(`Failed to parse response: ${e.message}. Response was: ${responseBody}`);
+        }
+        
         console.log("Draft Order Created Successfully:", data);
 
         // Get invoice URL for payment
