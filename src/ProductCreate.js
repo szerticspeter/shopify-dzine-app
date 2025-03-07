@@ -11,7 +11,7 @@ function ProductCreate() {
   // The actual published product URL in your Shopify store
   const SHOPIFY_PRODUCT_URL = "https://g2pgc1-08.myshopify.com/products/test-product-for-in-storepage-personalization";
   
-  // Set to true to see test options and debug
+  // Always show download option since direct injection isn't possible
   const TEST_MODE = true;
   
   // Test image URL for debugging (Unsplash image)
@@ -143,29 +143,39 @@ function ProductCreate() {
         // Construct the Shopify product URL
         const shopifyProductUrl = `${SHOPIFY_PRODUCT_URL}`;
         
-        // For direct redirection to Shopify
-        const shopifyRedirectUrl = `${SHOPIFY_PRODUCT_URL}`;
-        
-        // Create a script element to inject into the product page
-        // We'll store the image URL in sessionStorage first
-        const scriptContent = `
-          // Store image URL in sessionStorage for the product page to use
-          sessionStorage.setItem('styleImageUrl', '${imageUrl}');
-          console.log('Image URL stored for injection:', '${imageUrl}');
+        // After testing, we found that Shopify's customizer requires a manual file upload
+        // Let's download the image automatically, then redirect to Shopify
+        try {
+          // Fetch the image data
+          const response = await fetch(imageUrl);
+          const blob = await response.blob();
           
-          // Now redirect to Shopify
-          window.location.href = '${shopifyRedirectUrl}';
-        `;
-        
-        // Execute the script directly
-        const scriptElement = document.createElement('script');
-        scriptElement.textContent = scriptContent;
-        document.head.appendChild(scriptElement);
-        
-        // As a backup, also redirect after a short delay
-        setTimeout(() => {
-          window.location.href = shopifyRedirectUrl;
-        }, 500);
+          // Create a download link
+          const downloadUrl = URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          a.href = downloadUrl;
+          a.download = 'stylized-image.jpg';
+          
+          // Trigger download
+          document.body.appendChild(a);
+          a.click();
+          document.body.removeChild(a);
+          
+          // Clean up
+          setTimeout(() => URL.revokeObjectURL(downloadUrl), 100);
+          
+          // Alert the user about next steps and redirect
+          alert('Image downloaded! Now you will be redirected to the product page. Click "Replace image", select "My device", and choose the downloaded image.');
+          
+          // Redirect to Shopify
+          window.location.href = SHOPIFY_PRODUCT_URL;
+        } catch (error) {
+          console.error('Error preparing image for Shopify:', error);
+          alert('Error downloading the image. You will be redirected to the product page, but you might need to return and download the image manually.');
+          
+          // Still redirect to Shopify even if the download fails
+          window.location.href = SHOPIFY_PRODUCT_URL;
+        }
       }
     }
   }, [imageUrl]);
@@ -248,21 +258,46 @@ function ProductCreate() {
             Open in Shopify (New Tab)
           </a>
           
-          {/* Download Image Button - converts Base64 to downloadable file */}
-          <a 
-            href={imageUrl}
-            download="stylized-image.jpg"
+          {/* Download Image Button with improved handling for both Base64 and URLs */}
+          <button 
+            onClick={async () => {
+              try {
+                // For both URLs and Base64 data, fetch and download
+                const response = await fetch(imageUrl);
+                const blob = await response.blob();
+                
+                // Create download link
+                const downloadUrl = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = downloadUrl;
+                a.download = 'stylized-image.jpg';
+                
+                // Trigger download
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                
+                // Clean up
+                setTimeout(() => URL.revokeObjectURL(downloadUrl), 100);
+                
+                alert('Image downloaded successfully! Now open the Shopify product page, click "Replace image", select "My device", and choose the downloaded image.');
+              } catch (error) {
+                console.error('Error downloading image:', error);
+                alert('Error downloading image. Please try a different image or method.');
+              }
+            }}
             className="download-button"
             style={{ 
               backgroundColor: '#2196F3', 
               color: 'white', 
               padding: '10px 20px',
-              textDecoration: 'none',
-              borderRadius: '4px'
+              border: 'none',
+              borderRadius: '4px',
+              cursor: 'pointer'
             }}
           >
             Download Image
-          </a>
+          </button>
           
           <button 
             onClick={() => navigate('/')} 

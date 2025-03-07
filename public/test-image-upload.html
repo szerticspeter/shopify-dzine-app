@@ -44,222 +44,188 @@
         .test-button:hover {
             background-color: #4959bd;
         }
+        pre {
+            background-color: #f1f1f1;
+            padding: 10px;
+            overflow: auto;
+            border-radius: 4px;
+        }
+        .instruction-highlight {
+            background-color: #ffeeba;
+            padding: 2px 5px;
+            border-radius: 3px;
+        }
     </style>
 </head>
 <body>
     <h1>Test Image Upload to Shopify</h1>
     
     <div class="test-container">
-        <h2>Test with Unsplash Image</h2>
-        <p>This will test if we can simulate uploading an image from an external URL to your Shopify product customizer.</p>
+        <h2>Image Preparation</h2>
+        <p>This tool will help you prepare an image from a URL for uploading to Shopify's customizer.</p>
         
-        <h3>Image URL to Test</h3>
+        <h3>Image URL</h3>
         <input type="text" id="imageUrl" class="url-input" value="https://images.unsplash.com/photo-1579783902614-a3fb3927b6a5?ixlib=rb-4.0.3&auto=format&fit=crop&w=2245&q=80">
         
         <h3>Shopify Product URL</h3>
         <input type="text" id="productUrl" class="url-input" value="https://g2pgc1-08.myshopify.com/products/test-product-for-in-storepage-personalization">
         
         <div style="margin-top: 20px;">
-            <button id="testButton" class="test-button">Test Image Upload</button>
+            <button id="prepareButton" class="test-button">Download Image from URL</button>
             <button id="directButton" class="test-button" style="background-color: #47c1bf;">Go to Product Page</button>
         </div>
         
         <div id="result" style="margin-top: 20px;"></div>
     </div>
     
+    <div class="test-container">
+        <h2>Method 2: Clipboard Copy Test</h2>
+        <p>This method will attempt to copy the image to your clipboard so you can paste it directly into Shopify.</p>
+        
+        <div style="margin-top: 20px;">
+            <button id="clipboardButton" class="test-button" style="background-color: #ee5253;">Copy Image to Clipboard</button>
+        </div>
+        
+        <div id="clipboardResult" style="margin-top: 20px;"></div>
+    </div>
+    
     <h2>Instructions</h2>
     <ol>
-        <li>Enter the URL of an image you want to test (default is an Unsplash image)</li>
-        <li>Confirm the Shopify product URL is correct</li>
-        <li>Click "Test Image Upload" to open a new tab with our injection script</li>
-        <li>Watch the console (F12) to see if the image upload simulation works</li>
+        <li>Enter the URL of an image you want to use (default is an Unsplash image)</li>
+        <li>Click <span class="instruction-highlight">Download Image from URL</span> to download the image to your device</li>
+        <li>Click <span class="instruction-highlight">Go to Product Page</span> to open your Shopify product</li>
+        <li>On the Shopify product page:
+            <ol>
+                <li>Click <span class="instruction-highlight">Replace image</span> button</li>
+                <li>Select <span class="instruction-highlight">My device</span> option</li>
+                <li>Browse to the downloaded image and select it</li>
+            </ol>
+        </li>
     </ol>
     
-    <h2>How It Works</h2>
-    <p>When you click "Test Image Upload", we:</p>
+    <h2>Alternative Method: Clipboard</h2>
     <ol>
-        <li>Store the image URL in sessionStorage</li>
-        <li>Open the Shopify product page in a new tab</li>
-        <li>The script tries to find the file upload element and simulate an upload</li>
+        <li>Click <span class="instruction-highlight">Copy Image to Clipboard</span> (only works in Chrome, and may not work with all sites)</li>
+        <li>Go to the Shopify customizer</li>
+        <li>Click <span class="instruction-highlight">Replace image</span></li>
+        <li>Try to paste the image (Ctrl+V or Cmd+V)</li>
+    </ol>
+    
+    <h2>Understanding the Issue</h2>
+    <p>Based on your tests, it appears Shopify's customizer requires a direct file upload from the user's device and doesn't support programmatic file injection. This is likely for security reasons.</p>
+    
+    <p>The options above represent the most straightforward ways to get an external image into Shopify's customizer:</p>
+    <ol>
+        <li>Download the image first, then upload it manually</li>
+        <li>Try clipboard operations (may not be supported by Shopify)</li>
     </ol>
 
     <script>
-        document.getElementById('testButton').addEventListener('click', function() {
+        // Function to download the image
+        document.getElementById('prepareButton').addEventListener('click', async function() {
             const imageUrl = document.getElementById('imageUrl').value.trim();
-            const productUrl = document.getElementById('productUrl').value.trim();
             
-            if (!imageUrl || !productUrl) {
-                alert('Please enter both an image URL and a product URL');
+            if (!imageUrl) {
+                alert('Please enter an image URL');
                 return;
             }
-
-            // Store in sessionStorage
-            sessionStorage.setItem('styleImageUrl', imageUrl);
             
-            // Create HTML with the injection script
-            const injectionScript = `
-                // Wait for the DOM to be fully loaded
-                document.addEventListener('DOMContentLoaded', function() {
-                    // Get the image URL from sessionStorage
-                    const imageUrl = sessionStorage.getItem('styleImageUrl');
-                    console.log('Image URL for injection:', imageUrl);
-                    
-                    if (!imageUrl) {
-                        console.error('No image URL found in sessionStorage');
-                        return;
-                    }
-                    
-                    // Function to wait for an element to appear
-                    function waitForElement(selector, maxWaitTime = 10000) {
-                        return new Promise((resolve, reject) => {
-                            const startTime = Date.now();
-                            
-                            function checkElement() {
-                                const element = document.querySelector(selector);
-                                
-                                if (element) {
-                                    console.log('Found element:', selector);
-                                    resolve(element);
-                                    return;
-                                }
-                                
-                                if (Date.now() - startTime > maxWaitTime) {
-                                    reject(new Error(\`Element not found after \${maxWaitTime}ms: \${selector}\`));
-                                    return;
-                                }
-                                
-                                setTimeout(checkElement, 100);
-                            }
-                            
-                            checkElement();
-                        });
-                    }
-                    
-                    // Main function to handle image injection
-                    async function injectImage() {
-                        try {
-                            console.log('Looking for upload elements...');
-                            
-                            // Try different selectors for the upload button/input
-                            const selectors = [
-                                'input[type="file"]',
-                                '.personalization-file-upload button', 
-                                '[data-testid="file-upload-button"]', 
-                                'button[aria-label="Upload Image"]',
-                                '.personalization button',
-                                '[data-action="upload"]'
-                            ];
-                            
-                            let uploadElement = null;
-                            
-                            // Try each selector
-                            for (const selector of selectors) {
-                                try {
-                                    console.log('Trying selector:', selector);
-                                    uploadElement = await waitForElement(selector, 3000);
-                                    if (uploadElement) {
-                                        console.log('Found element with selector:', selector);
-                                        break;
-                                    }
-                                } catch (e) {
-                                    console.log('Selector not found:', selector);
-                                }
-                            }
-                            
-                            if (!uploadElement) {
-                                throw new Error('Could not find any upload element');
-                            }
-                            
-                            // Check if it's a file input or button
-                            const isInput = uploadElement.tagName.toLowerCase() === 'input';
-                            
-                            if (!isInput) {
-                                console.log('Found upload button, clicking it...');
-                                uploadElement.click();
-                                
-                                // Now wait for the file input to appear
-                                const fileInput = await waitForElement('input[type="file"]', 5000);
-                                await processFileInput(fileInput);
-                            } else {
-                                console.log('Found file input directly');
-                                await processFileInput(uploadElement);
-                            }
-                        } catch (error) {
-                            console.error('Error during image injection:', error);
-                            alert('Could not automatically upload image: ' + error.message);
-                        }
-                    }
-                    
-                    // Function to process a file input element
-                    async function processFileInput(fileInput) {
-                        try {
-                            console.log('Fetching image from URL:', imageUrl);
-                            const response = await fetch(imageUrl);
-                            if (!response.ok) {
-                                throw new Error(\`Failed to fetch image: \${response.status} \${response.statusText}\`);
-                            }
-                            
-                            const blob = await response.blob();
-                            console.log('Image fetched successfully, size:', blob.size);
-                            
-                            // Create a File object
-                            const fileName = 'stylized-image.jpg';
-                            const file = new File([blob], fileName, { type: 'image/jpeg' });
-                            
-                            // Create a FileList-like object
-                            const fileList = {
-                                0: file,
-                                length: 1,
-                                item: (index) => index === 0 ? file : null
-                            };
-                            
-                            // Override the files property
-                            Object.defineProperty(fileInput, 'files', {
-                                value: fileList,
-                                writable: false
-                            });
-                            
-                            // Dispatch change event
-                            const event = new Event('change', { bubbles: true });
-                            fileInput.dispatchEvent(event);
-                            
-                            console.log('Successfully injected image into file input');
-                            sessionStorage.removeItem('styleImageUrl');
-                        } catch (error) {
-                            console.error('Error processing file input:', error);
-                            throw error;
-                        }
-                    }
-                    
-                    // Start the injection process
-                    injectImage();
-                });
-            `;
-            
-            // Open a new window and write the script directly
-            const newWindow = window.open(productUrl, '_blank');
-            if (newWindow) {
-                setTimeout(() => {
-                    try {
-                        // Inject our script
-                        newWindow.eval(injectionScript);
-                    } catch (e) {
-                        console.error('Failed to inject script:', e);
-                    }
-                }, 1000);
-            } else {
-                alert('Popup blocked! Please allow popups for this site to test the image upload.');
+            try {
+                document.getElementById('result').innerHTML = '<p>Downloading image... please wait.</p>';
+                
+                // Fetch the image
+                const response = await fetch(imageUrl);
+                if (!response.ok) {
+                    throw new Error(`Failed to fetch image: ${response.status} ${response.statusText}`);
+                }
+                
+                const blob = await response.blob();
+                
+                // Create a download link
+                const downloadUrl = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = downloadUrl;
+                a.download = 'stylized-image.jpg'; // Set the filename
+                
+                // Trigger download
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                
+                // Clean up
+                setTimeout(() => URL.revokeObjectURL(downloadUrl), 100);
+                
+                document.getElementById('result').innerHTML = `
+                    <p>✅ Image downloaded successfully! Now:</p>
+                    <ol>
+                        <li>Click <strong>Go to Product Page</strong> to open your Shopify product</li>
+                        <li>On the Shopify page, click <strong>Replace image</strong></li>
+                        <li>Select <strong>My device</strong></li>
+                        <li>Choose the image you just downloaded (stylized-image.jpg)</li>
+                    </ol>
+                `;
+            } catch (error) {
+                console.error('Error downloading image:', error);
+                document.getElementById('result').innerHTML = `
+                    <p>❌ Error downloading image: ${error.message}</p>
+                `;
             }
-            
-            document.getElementById('result').innerHTML = `<p>Test started! Check the console in the new tab (press F12) to see if the image upload worked.</p>`;
         });
         
+        // Direct navigation to product page
         document.getElementById('directButton').addEventListener('click', function() {
             const productUrl = document.getElementById('productUrl').value.trim();
             if (productUrl) {
                 window.open(productUrl, '_blank');
             } else {
                 alert('Please enter a product URL');
+            }
+        });
+        
+        // Clipboard copy attempt (may not work on all browsers/sites)
+        document.getElementById('clipboardButton').addEventListener('click', async function() {
+            const imageUrl = document.getElementById('imageUrl').value.trim();
+            
+            if (!imageUrl) {
+                alert('Please enter an image URL');
+                return;
+            }
+            
+            try {
+                document.getElementById('clipboardResult').innerHTML = '<p>Attempting to copy image to clipboard... please wait.</p>';
+                
+                // Try to fetch the image
+                const response = await fetch(imageUrl);
+                if (!response.ok) {
+                    throw new Error(`Failed to fetch image: ${response.status} ${response.statusText}`);
+                }
+                
+                const blob = await response.blob();
+                
+                // Try to copy to clipboard (this may not work in all browsers)
+                try {
+                    const item = new ClipboardItem({ [blob.type]: blob });
+                    await navigator.clipboard.write([item]);
+                    
+                    document.getElementById('clipboardResult').innerHTML = `
+                        <p>✅ Image copied to clipboard! Now:</p>
+                        <ol>
+                            <li>Go to your Shopify product page</li>
+                            <li>Click <strong>Replace image</strong></li>
+                            <li>Try to paste the image (Ctrl+V or Cmd+V)</li>
+                        </ol>
+                        <p><em>Note: This method may not work with Shopify's customizer - it depends on how they've implemented file uploads.</em></p>
+                    `;
+                } catch (clipboardError) {
+                    throw new Error(`Clipboard API not supported or permission denied: ${clipboardError.message}`);
+                }
+            } catch (error) {
+                console.error('Error with clipboard operation:', error);
+                document.getElementById('clipboardResult').innerHTML = `
+                    <p>❌ Error copying to clipboard: ${error.message}</p>
+                    <p>This browser may not support clipboard operations, or the site's content security policy may prevent it.</p>
+                    <p>Please try the download method instead.</p>
+                `;
             }
         });
     </script>
