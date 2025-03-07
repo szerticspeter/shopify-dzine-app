@@ -4,6 +4,8 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Test Draft Order Creation</title>
+    <!-- Cropper.js CSS -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.5.13/cropper.min.css">
     <style>
         body {
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
@@ -33,9 +35,29 @@
             border: none;
             border-radius: 4px;
             cursor: pointer;
+            margin-right: 8px;
+            margin-bottom: 8px;
         }
         button:hover {
             background-color: #45a049;
+        }
+        .edit-button {
+            background-color: #2196F3;
+        }
+        .edit-button:hover {
+            background-color: #0b7dda;
+        }
+        .save-button {
+            background-color: #ff9800;
+        }
+        .save-button:hover {
+            background-color: #e68a00;
+        }
+        .cancel-button {
+            background-color: #f44336;
+        }
+        .cancel-button:hover {
+            background-color: #da190b;
         }
         .result {
             margin-top: 20px;
@@ -86,6 +108,66 @@
             background: rgba(0,0,0,0.1);
             border-radius: 50%;
             filter: blur(5px);
+        }
+        /* Image editor styles */
+        .editor-container {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: rgba(0, 0, 0, 0.8);
+            z-index: 1000;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+        }
+        .editor-content {
+            background-color: white;
+            border-radius: 8px;
+            width: 100%;
+            max-width: 800px;
+            max-height: 90vh;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+        }
+        .editor-header {
+            padding: 15px;
+            border-bottom: 1px solid #eee;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .editor-body {
+            padding: 20px;
+            overflow-y: auto;
+            flex-grow: 1;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+        .editor-footer {
+            padding: 15px;
+            border-top: 1px solid #eee;
+            text-align: right;
+        }
+        .image-container {
+            max-width: 100%;
+            max-height: 60vh;
+            margin-bottom: 20px;
+        }
+        .image-container img {
+            display: block;
+            max-width: 100%;
+        }
+        .button-group {
+            margin: 10px 0;
+        }
+        .hide {
+            display: none;
         }
     </style>
 </head>
@@ -139,6 +221,35 @@
             <img id="previewImageMetal" src="" alt="Custom Metal Print Preview">
             <div style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: linear-gradient(45deg, rgba(255,255,255,0.1), rgba(255,255,255,0.3)); pointer-events: none;"></div>
         </div>
+        
+        <div style="margin-top: 20px;">
+            <button id="editImageButton" class="edit-button">Edit/Crop Image</button>
+        </div>
+    </div>
+    
+    <!-- Image Editor Modal -->
+    <div class="editor-container hide" id="imageEditor">
+        <div class="editor-content">
+            <div class="editor-header">
+                <h2>Edit Your Image</h2>
+                <button class="cancel-button" id="closeEditor">&times;</button>
+            </div>
+            <div class="editor-body">
+                <div class="image-container">
+                    <img id="imageToEdit" src="" alt="Image to edit">
+                </div>
+                <div class="button-group">
+                    <button id="cropButton" class="edit-button">Crop</button>
+                    <button id="rotateLeftButton" class="edit-button">Rotate Left</button>
+                    <button id="rotateRightButton" class="edit-button">Rotate Right</button>
+                    <button id="resetButton" class="edit-button">Reset</button>
+                </div>
+            </div>
+            <div class="editor-footer">
+                <button id="cancelEditing" class="cancel-button">Cancel</button>
+                <button id="saveImage" class="save-button">Save Changes</button>
+            </div>
+        </div>
     </div>
 
     <div class="form-group">
@@ -160,8 +271,15 @@
 
     <div class="result" id="result" style="display: none;"></div>
     <div class="result" id="invoiceLink" style="display: none;"></div>
+    
+    <!-- Include Cropper.js library -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.5.13/cropper.min.js"></script>
 
     <script>
+        // Store the edited image URL
+        let editedImageUrl = '';
+        let cropper = null;
+        
         // Function to show the selected product preview
         function updateProductType() {
             const selectedType = document.querySelector('input[name="productType"]:checked').value;
@@ -193,9 +311,9 @@
             }
         }
         
-        // Function to update all preview images
+        // Function to update all preview images with the current image (original or edited)
         function updatePreview() {
-            const imageUrl = document.getElementById('imageUrl').value;
+            const imageUrl = editedImageUrl || document.getElementById('imageUrl').value;
             
             if (imageUrl) {
                 // Update all preview images
@@ -209,7 +327,121 @@
             }
         }
         
-        // Initialize preview with the default image URL
+        // Function to open the image editor
+        function openImageEditor() {
+            const imageUrl = editedImageUrl || document.getElementById('imageUrl').value;
+            
+            if (!imageUrl) {
+                alert('Please enter an image URL first.');
+                return;
+            }
+            
+            // Set up the image editor
+            const imageToEdit = document.getElementById('imageToEdit');
+            imageToEdit.src = imageUrl;
+            
+            // Show the editor modal
+            document.getElementById('imageEditor').classList.remove('hide');
+            
+            // Initialize cropper when image is loaded
+            imageToEdit.onload = function() {
+                // Destroy previous cropper instance if it exists
+                if (cropper) {
+                    cropper.destroy();
+                }
+                
+                // Initialize Cropper.js
+                cropper = new Cropper(imageToEdit, {
+                    aspectRatio: 4 / 3,
+                    viewMode: 1,
+                    guides: true,
+                    autoCropArea: 0.8,
+                    responsive: true
+                });
+            };
+        }
+        
+        // Function to close the image editor
+        function closeImageEditor() {
+            document.getElementById('imageEditor').classList.add('hide');
+            if (cropper) {
+                cropper.destroy();
+                cropper = null;
+            }
+        }
+        
+        // Function to save the edited image
+        async function saveEditedImage() {
+            if (!cropper) {
+                closeImageEditor();
+                return;
+            }
+            
+            // Get the cropped canvas
+            const canvas = cropper.getCroppedCanvas({
+                width: 1200,
+                height: 900,
+                imageSmoothingQuality: 'high'
+            });
+            
+            if (!canvas) {
+                alert('Could not crop the image. Please try again.');
+                return;
+            }
+            
+            // Convert canvas to data URL (PNG format)
+            const imageData = canvas.toDataURL('image/png');
+            
+            try {
+                // Display a loading message
+                document.getElementById('imageEditor').querySelector('.editor-body').innerHTML += 
+                    '<div id="uploadStatus"><p>Saving edited image... Please wait.</p></div>';
+                
+                // Get the product type
+                const productType = document.querySelector('input[name="productType"]:checked').value;
+                
+                // Call the saveEditedImage function
+                const response = await fetch('/.netlify/functions/saveEditedImage', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        imageData,
+                        productType
+                    })
+                });
+                
+                if (!response.ok) {
+                    throw new Error(`Server responded with status: ${response.status}`);
+                }
+                
+                const data = await response.json();
+                
+                if (data.success && data.imageUrl) {
+                    // Store the URL of the saved image
+                    editedImageUrl = data.imageUrl;
+                    
+                    // Update all previews with the edited image
+                    updatePreview();
+                    
+                    // Close the editor
+                    closeImageEditor();
+                } else {
+                    throw new Error(data.error || 'Unknown error saving image');
+                }
+            } catch (error) {
+                console.error('Error saving edited image:', error);
+                alert(`Failed to save the edited image: ${error.message}. Using local preview only.`);
+                
+                // For fallback, use the local dataURL if the server save failed
+                editedImageUrl = imageData;
+                updatePreview();
+                closeImageEditor();
+            }
+        }
+        
+        // Initialize preview with the default image URL and set up event listeners
         document.addEventListener('DOMContentLoaded', function() {
             updatePreview();
             
@@ -218,10 +450,49 @@
             radioButtons.forEach(button => {
                 button.addEventListener('change', updateProductType);
             });
+            
+            // Edit Image button
+            document.getElementById('editImageButton').addEventListener('click', openImageEditor);
+            
+            // Close editor buttons
+            document.getElementById('closeEditor').addEventListener('click', closeImageEditor);
+            document.getElementById('cancelEditing').addEventListener('click', closeImageEditor);
+            
+            // Save Image button
+            document.getElementById('saveImage').addEventListener('click', saveEditedImage);
+            
+            // Image editing actions
+            document.getElementById('cropButton').addEventListener('click', function() {
+                if (cropper) {
+                    cropper.setDragMode('crop');
+                }
+            });
+            
+            document.getElementById('rotateLeftButton').addEventListener('click', function() {
+                if (cropper) {
+                    cropper.rotate(-90);
+                }
+            });
+            
+            document.getElementById('rotateRightButton').addEventListener('click', function() {
+                if (cropper) {
+                    cropper.rotate(90);
+                }
+            });
+            
+            document.getElementById('resetButton').addEventListener('click', function() {
+                if (cropper) {
+                    cropper.reset();
+                }
+            });
         });
         
         // Update preview when image URL changes
-        document.getElementById('imageUrl').addEventListener('input', updatePreview);
+        document.getElementById('imageUrl').addEventListener('input', function() {
+            // Reset edited image URL when original URL changes
+            editedImageUrl = '';
+            updatePreview();
+        });
         
         // Validate image URL when it loses focus
         document.getElementById('imageUrl').addEventListener('blur', function() {
@@ -238,7 +509,8 @@
         });
         
         document.getElementById('createDraftOrder').addEventListener('click', async () => {
-            const imageUrl = document.getElementById('imageUrl').value;
+            // Use edited image URL if available, otherwise use original URL
+            const imageUrl = editedImageUrl || document.getElementById('imageUrl').value;
             const title = document.getElementById('title').value;
             const price = document.getElementById('price').value;
             const customerId = document.getElementById('customerId').value;
@@ -255,7 +527,8 @@
                 imageUrl,
                 title,
                 price,
-                productType
+                productType,
+                isEdited: editedImageUrl ? true : false
             };
             
             if (customerId) {

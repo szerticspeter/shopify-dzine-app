@@ -42,7 +42,14 @@ exports.handler = async function(event, context) {
         };
     }
 
-    const { imageUrl, customerId = null, title = "Custom Canvas Print", price = "49.99", productType = "canvas" } = body;
+    const { 
+        imageUrl, 
+        customerId = null, 
+        title = "Custom Canvas Print", 
+        price = "49.99", 
+        productType = "canvas",
+        isEdited = false
+    } = body;
 
     if (!imageUrl) {
         return {
@@ -54,6 +61,7 @@ exports.handler = async function(event, context) {
 
     console.log("Creating draft order with image:", imageUrl);
     console.log("Product type:", productType);
+    console.log("Image was edited:", isEdited);
 
     const url = `https://${SHOPIFY_STORE_DOMAIN}/admin/api/2023-10/draft_orders.json`;
 
@@ -68,7 +76,7 @@ exports.handler = async function(event, context) {
                     requires_shipping: true
                 }
             ],
-            note: `Custom image URL: ${imageUrl} | Product Type: ${productType}`,
+            note: `Custom image URL: ${imageUrl} | Product Type: ${productType} | User Edited: ${isEdited ? 'Yes' : 'No'}`,
             note_attributes: [
                 {
                     name: "final_image_url",
@@ -81,6 +89,10 @@ exports.handler = async function(event, context) {
                 {
                     name: "product_type",
                     value: productType
+                },
+                {
+                    name: "user_edited",
+                    value: isEdited ? "true" : "false"
                 }
             ]
         }
