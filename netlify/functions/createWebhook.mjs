@@ -1,7 +1,7 @@
-// Use node-fetch for Node.js compatibility
-const fetch = require('node-fetch');
+// ESM module
+import fetch from 'node-fetch';
 
-exports.handler = async function(event, context) {
+export const handler = async function(event, context) {
     console.log("Creating Shopify webhook");
     
     // Add CORS headers

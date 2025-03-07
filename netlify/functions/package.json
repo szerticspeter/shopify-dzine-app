@@ -2,7 +2,8 @@
   "name": "netlify-functions",
   "version": "1.0.0",
   "description": "Netlify functions for shopify-dzine-app",
+  "type": "module",
   "dependencies": {
-    "node-fetch": "^2.6.7"
+    "node-fetch": "^3.3.0"
   }
 }
