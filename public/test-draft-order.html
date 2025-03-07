@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test Draft Order Creation</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        .form-group {
+            margin-bottom: 20px;
+        }
+        label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+        }
+        input[type="text"], input[type="number"] {
+            width: 100%;
+            padding: 8px;
+            box-sizing: border-box;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+        button {
+            background-color: #4CAF50;
+            color: white;
+            padding: 10px 15px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        button:hover {
+            background-color: #45a049;
+        }
+        .result {
+            margin-top: 20px;
+            padding: 15px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            background-color: #f9f9f9;
+            white-space: pre-wrap;
+        }
+    </style>
+</head>
+<body>
+    <h1>Test Draft Order Creation</h1>
+    <p>Create a draft order with a custom image without creating a Shopify product first.</p>
+
+    <div class="form-group">
+        <label for="imageUrl">Image URL:</label>
+        <input type="text" id="imageUrl" value="https://plus.unsplash.com/premium_photo-1664474619075-644dd191935f?q=80&w=1469&auto=format&fit=crop&ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D">
+    </div>
+
+    <div class="form-group">
+        <label for="title">Product Title:</label>
+        <input type="text" id="title" value="Custom Canvas Print">
+    </div>
+
+    <div class="form-group">
+        <label for="price">Price:</label>
+        <input type="text" id="price" value="49.99">
+    </div>
+
+    <div class="form-group">
+        <label for="customerId">Customer ID (optional):</label>
+        <input type="text" id="customerId" placeholder="Leave blank for guest checkout">
+    </div>
+
+    <button id="createDraftOrder">Create Draft Order</button>
+
+    <div class="result" id="result" style="display: none;"></div>
+    <div class="result" id="invoiceLink" style="display: none;"></div>
+
+    <script>
+        document.getElementById('createDraftOrder').addEventListener('click', async () => {
+            const imageUrl = document.getElementById('imageUrl').value;
+            const title = document.getElementById('title').value;
+            const price = document.getElementById('price').value;
+            const customerId = document.getElementById('customerId').value;
+            
+            const resultDiv = document.getElementById('result');
+            const invoiceLinkDiv = document.getElementById('invoiceLink');
+            
+            resultDiv.style.display = 'block';
+            resultDiv.textContent = 'Creating draft order...';
+            invoiceLinkDiv.style.display = 'none';
+            
+            const requestData = {
+                imageUrl,
+                title,
+                price
+            };
+            
+            if (customerId) {
+                requestData.customerId = parseInt(customerId, 10);
+            }
+            
+            try {
+                const response = await fetch('/.netlify/functions/createDraftOrder', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(requestData)
+                });
+                
+                const data = await response.json();
+                
+                if (response.ok) {
+                    resultDiv.textContent = JSON.stringify(data, null, 2);
+                    
+                    if (data.invoiceUrl) {
+                        invoiceLinkDiv.style.display = 'block';
+                        invoiceLinkDiv.innerHTML = `<p>Complete your order here:</p><a href="${data.invoiceUrl}" target="_blank">Open Draft Order Invoice</a>`;
+                    }
+                } else {
+                    resultDiv.textContent = `Error: ${data.error || 'Unknown error'}`;
+                }
+            } catch (error) {
+                resultDiv.textContent = `Error: ${error.message}`;
+            }
+        });
+    </script>
+</body>
+</html>
