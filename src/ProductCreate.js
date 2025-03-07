@@ -11,8 +11,11 @@ function ProductCreate() {
   // The actual published product URL in your Shopify store
   const SHOPIFY_PRODUCT_URL = "https://g2pgc1-08.myshopify.com/products/test-product-for-in-storepage-personalization";
   
-  // Set to true to verify the flow and image URL without redirecting
-  const TEST_MODE = true;
+  // Set to false to enable auto-redirect with image injection script
+  const TEST_MODE = false;
+  
+  // Test image URL for debugging (Unsplash image)
+  const TEST_IMAGE_URL = "https://plus.unsplash.com/premium_photo-1664474619075-644dd191935f?q=80&w=1469&auto=format&fit=crop&ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D";
 
   useEffect(() => {
     try {
@@ -40,6 +43,92 @@ function ProductCreate() {
     }
   }, [location.search]);
 
+  // Create the image injection script
+  const createImageInjectionScript = (imageUrl) => {
+    // This script will run on the Shopify product page
+    const injectionScript = `
+      // Wait for the page to fully load
+      window.addEventListener('load', async function() {
+        try {
+          console.log('Image injection script running...');
+          
+          // Function to wait for an element to appear in the DOM
+          function waitForElement(selector, timeout = 10000) {
+            return new Promise((resolve, reject) => {
+              const startTime = Date.now();
+              
+              const checkElement = () => {
+                const element = document.querySelector(selector);
+                if (element) {
+                  resolve(element);
+                  return;
+                }
+                
+                if (Date.now() - startTime > timeout) {
+                  reject(new Error(\`Element \${selector} not found after \${timeout}ms\`));
+                  return;
+                }
+                
+                setTimeout(checkElement, 100);
+              };
+              
+              checkElement();
+            });
+          }
+          
+          // Wait for the file upload button to appear
+          const uploadButton = await waitForElement('.personalization-file-upload button, [data-testid="file-upload-button"], button[aria-label="Upload Image"]');
+          console.log('Found upload button:', uploadButton);
+          
+          // Fetch the image from the URL
+          const response = await fetch('${imageUrl}');
+          const blob = await response.blob();
+          
+          // Create a File object from the Blob
+          const fileName = 'stylized-image.jpg';
+          const file = new File([blob], fileName, { type: 'image/jpeg' });
+          
+          // Create a FileList-like object
+          const fileList = {
+            0: file,
+            length: 1,
+            item: (index) => index === 0 ? file : null
+          };
+          
+          // Find the file input element
+          const fileInput = document.querySelector('input[type="file"]');
+          
+          if (fileInput) {
+            // Override the files property
+            Object.defineProperty(fileInput, 'files', {
+              value: fileList,
+              writable: false
+            });
+            
+            // Dispatch change event
+            const event = new Event('change', { bubbles: true });
+            fileInput.dispatchEvent(event);
+            console.log('Successfully injected image into file input');
+          } else {
+            // If we can't find the file input, click the upload button to open the file dialog
+            console.log('File input not found. Clicking upload button instead...');
+            uploadButton.click();
+            
+            // Alert the user with instructions as a fallback
+            setTimeout(() => {
+              alert('Please select the stylized image from your download folder');
+            }, 1000);
+          }
+        } catch (error) {
+          console.error('Error in image injection script:', error);
+          alert('Could not automatically upload the image. Please download and upload it manually.');
+        }
+      });
+    `;
+    
+    return injectionScript;
+  };
+
   // Handle the image URL when available
   useEffect(() => {
     if (imageUrl) {
@@ -48,11 +137,39 @@ function ProductCreate() {
         console.log("Test mode active: Not redirecting to Shopify product page");
         setLoading(false);
       } else {
-        // Construct the Shopify product URL with the image as a query parameter for in-store personalization
-        const shopifyProductUrl = `${SHOPIFY_PRODUCT_URL}?image=${encodeURIComponent(imageUrl)}`;
+        // Create the image injection script
+        const injectionScript = createImageInjectionScript(imageUrl);
         
-        // Redirect to Shopify product page
-        window.location.href = shopifyProductUrl;
+        // Construct the Shopify product URL
+        const shopifyProductUrl = `${SHOPIFY_PRODUCT_URL}`;
+        
+        // Create a placeholder HTML with the injection script
+        const html = `
+          <!DOCTYPE html>
+          <html>
+            <head>
+              <title>Redirecting to Shopify...</title>
+              <script>
+                ${injectionScript}
+                // Redirect after a short delay to ensure script is loaded
+                setTimeout(function() {
+                  window.location.href = "${shopifyProductUrl}";
+                }, 100);
+              </script>
+            </head>
+            <body>
+              <h1>Redirecting to product page...</h1>
+              <p>You will be redirected in a moment. If you are not redirected, <a href="${shopifyProductUrl}">click here</a>.</p>
+            </body>
+          </html>
+        `;
+        
+        // Create a Blob with the HTML
+        const blob = new Blob([html], { type: 'text/html' });
+        const redirectUrl = URL.createObjectURL(blob);
+        
+        // Open the redirect page in a new window (to avoid CORS issues)
+        window.location.href = redirectUrl;
       }
     }
   }, [imageUrl]);
@@ -73,7 +190,7 @@ function ProductCreate() {
     return (
       <div className="success-container">
         <h2>Your Image is Ready for Personalization</h2>
-        <p>Here's the stylized image that would be sent to the Gelato product page:</p>
+        <p>Here's the stylized image that would be sent to the Shopify product page:</p>
         
         <div className="image-preview" style={{ margin: '20px 0' }}>
           <img 
@@ -83,7 +200,55 @@ function ProductCreate() {
           />
         </div>
         
-        <p>The image URL has been copied below:</p>
+        <h3>Testing Options</h3>
+        
+        <div style={{ marginBottom: '20px' }}>
+          <button 
+            onClick={() => {
+              const testScript = createImageInjectionScript(TEST_IMAGE_URL);
+              console.log("Testing with Unsplash image URL");
+              
+              // Create a blob URL with the test script
+              const html = `
+                <!DOCTYPE html>
+                <html>
+                  <head>
+                    <title>Testing Image Injection</title>
+                    <script>
+                      ${testScript}
+                      // Redirect after a short delay
+                      setTimeout(function() {
+                        window.location.href = "${SHOPIFY_PRODUCT_URL}";
+                      }, 100);
+                    </script>
+                  </head>
+                  <body>
+                    <h1>Testing image injection with Unsplash image</h1>
+                    <p>Redirecting to Shopify...</p>
+                  </body>
+                </html>
+              `;
+              
+              const blob = new Blob([html], { type: 'text/html' });
+              const redirectUrl = URL.createObjectURL(blob);
+              
+              window.open(redirectUrl, '_blank');
+            }}
+            style={{
+              backgroundColor: '#9C27B0',
+              color: 'white',
+              padding: '10px 20px',
+              border: 'none',
+              borderRadius: '4px',
+              marginBottom: '20px',
+              cursor: 'pointer'
+            }}
+          >
+            Test With Unsplash Image
+          </button>
+        </div>
+        
+        <p>The image URL/data has been copied below:</p>
         <textarea 
           readOnly 
           value={imageUrl}
