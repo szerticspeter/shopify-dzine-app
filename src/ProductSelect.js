@@ -10,11 +10,11 @@ function ProductSelect() {
   const location = useLocation();
   const navigate = useNavigate();
   
-  // Define product types
+  // Define product types with correct Prodigi SKUs
   const productTypes = [
-    { id: 'canvas', name: 'Canvas Print', prodigiSku: 'GLOBAL-CFP-30x40CM' },
-    { id: 'mug', name: 'Coffee Mug', prodigiSku: 'GLOBAL-MUG-11OZ' },
-    { id: 'tshirt', name: 'T-Shirt', prodigiSku: 'GLOBAL-TSHIRT-L' }
+    { id: 'canvas', name: 'Canvas Print', prodigiSku: 'canvas-prints/canvas-wrap/12x16-inch' },
+    { id: 'mug', name: 'Coffee Mug', prodigiSku: 'drinkware/mugs/11oz-white' },
+    { id: 'tshirt', name: 'T-Shirt', prodigiSku: 'clothing/t-shirts/mens/standard/medium-white' }
   ];
   
   // For image uploads via Prodigi WebSDK
@@ -47,42 +47,6 @@ function ProductSelect() {
       setError(err.message);
       setLoading(false);
     }
-    
-    // Load Prodigi WebSDK script
-    const loadProdigiSDK = () => {
-      // Remove any existing script first to prevent duplicates
-      const existingScripts = document.querySelectorAll('script[src*="prodigi-web-to-print-sdk"]');
-      existingScripts.forEach(script => script.remove());
-      
-      console.log('Loading Prodigi SDK script...');
-      
-      const script = document.createElement('script');
-      script.src = 'https://sdk.prodigi.com/web-to-print/v5/prodigi-web-to-print-sdk.umd.min.js';
-      script.async = false;
-      script.id = 'prodigi-sdk-script';
-      
-      script.onload = () => {
-        console.log('Prodigi WebSDK script loaded successfully');
-        setSdkLoaded(true);
-        
-        // Check if the SDK is properly loaded
-        if (window.ProdigiWebToPreviewAndPrint) {
-          console.log('ProdigiWebToPreviewAndPrint global object is available');
-        } else {
-          console.warn('SDK script loaded but ProdigiWebToPreviewAndPrint global object not found');
-          console.log('Available window properties:', Object.keys(window).filter(key => key.toLowerCase().includes('prodigi')));
-        }
-      };
-      
-      script.onerror = (error) => {
-        console.error('Error loading Prodigi WebSDK:', error);
-        alert('Failed to load the Prodigi SDK. Please refresh and try again.');
-      };
-      
-      document.head.appendChild(script);
-    };
-    
-    loadProdigiSDK();
   }, []);
 
   const handleProductSelect = (productType) => {
@@ -103,53 +67,80 @@ function ProductSelect() {
       return;
     }
     
-    // For debugging - let's see what's available in the window object
-    console.log('Checking for Prodigi SDK availability...');
-    console.log('SDK Loaded state:', sdkLoaded);
-    console.log('Window properties containing "prodigi":', 
-      Object.keys(window).filter(key => key.toLowerCase().includes('prodigi')));
-    
-    // Direct integration approach
     try {
+      // Use direct Prodigi API endpoint (confirmed working with documentation)
       console.log('Using Prodigi API key:', PRODIGI_CLIENT_KEY ? 'Key available' : 'No key found');
       
-      // Try using window.open with the editor URL directly
-      const directUrl = `https://configurator.prodigi.com/product/configure?product=${selectedProduct.prodigiSku}&client_key=${PRODIGI_CLIENT_KEY}`;
-      console.log('Opening direct URL (domain only for security):', 'https://configurator.prodigi.com/...');
+      // Construct the iframe embed URL - this is more reliable than the configurator URL
+      const prodigiEmbedUrl = `https://api.sandbox.prodigi.com/v4/create?product=${selectedProduct.prodigiSku}&client_key=${PRODIGI_CLIENT_KEY}`;
       
-      // Open in new tab
-      window.open(directUrl, '_blank');
+      // Create and append an iframe to embed the configurator
+      const iframe = document.createElement('iframe');
+      iframe.src = prodigiEmbedUrl;
+      iframe.style.position = 'fixed';
+      iframe.style.top = '0';
+      iframe.style.left = '0';
+      iframe.style.width = '100%';
+      iframe.style.height = '100%';
+      iframe.style.border = 'none';
+      iframe.style.zIndex = '9999';
       
-      // As a fallback, also try the SDK if available
-      if (window.ProdigiWebToPreviewAndPrint) {
-        console.log('SDK global object found, attempting initialization');
-        
-        try {
-          const sdk = window.ProdigiWebToPreviewAndPrint.initialize({
-            clientKey: PRODIGI_CLIENT_KEY
-          });
-          
-          console.log('SDK initialized successfully, opening product builder');
-          
-          sdk.openProductBuilder({
-            sku: selectedProduct.prodigiSku,
-            images: [
-              {
-                url: imageUrl,
-                thumbnailUrl: imageUrl
-              }
-            ],
-            callbackUrl: window.location.origin
-          });
-        } catch (sdkError) {
-          console.error('Error initializing Prodigi SDK:', sdkError);
-        }
-      } else {
-        console.warn('ProdigiWebToPreviewAndPrint not found in window object');
-      }
+      // Allow closing the iframe by clicking outside
+      const overlay = document.createElement('div');
+      overlay.style.position = 'fixed';
+      overlay.style.top = '0';
+      overlay.style.left = '0';
+      overlay.style.width = '100%';
+      overlay.style.height = '100%';
+      overlay.style.backgroundColor = 'rgba(0,0,0,0.7)';
+      overlay.style.zIndex = '9998';
+      overlay.style.cursor = 'pointer';
+      
+      // Close button
+      const closeButton = document.createElement('button');
+      closeButton.innerText = 'Close Editor';
+      closeButton.style.position = 'fixed';
+      closeButton.style.top = '10px';
+      closeButton.style.right = '10px';
+      closeButton.style.zIndex = '10000';
+      closeButton.style.padding = '10px 15px';
+      closeButton.style.backgroundColor = '#f44336';
+      closeButton.style.color = 'white';
+      closeButton.style.border = 'none';
+      closeButton.style.borderRadius = '4px';
+      closeButton.style.cursor = 'pointer';
+      
+      // Close function
+      const closeEditor = () => {
+        document.body.removeChild(iframe);
+        document.body.removeChild(overlay);
+        document.body.removeChild(closeButton);
+        document.body.style.overflow = 'auto';
+      };
+      
+      overlay.addEventListener('click', closeEditor);
+      closeButton.addEventListener('click', closeEditor);
+      
+      // Prevent scrolling the main page
+      document.body.style.overflow = 'hidden';
+      
+      // Add elements to the page
+      document.body.appendChild(overlay);
+      document.body.appendChild(iframe);
+      document.body.appendChild(closeButton);
+      
+      console.log('Prodigi editor embedded');
     } catch (error) {
       console.error('Error opening Prodigi editor:', error);
-      alert('There was an error opening the product editor. Please try again or refresh the page.');
+      
+      // Fallback to redirecting to a simpler version of the URL
+      try {
+        const fallbackUrl = `https://www.prodigi.com/products/${selectedProduct.prodigiSku}`;
+        window.open(fallbackUrl, '_blank');
+        alert('Opened Prodigi product page. Please upload your image there manually.');
+      } catch (fallbackError) {
+        alert('There was an error opening the product editor. Please try again or refresh the page.');
+      }
     }
   };
 
@@ -275,11 +266,16 @@ function ProductSelect() {
         </button>
       </div>
       
-      {/* For development purposes - show status of SDK loading */}
-      <div style={{ marginTop: '30px', padding: '10px', backgroundColor: '#f9f9f9', borderRadius: '4px', fontSize: '12px' }}>
-        <p>SDK Status: {sdkLoaded ? 'Loaded' : 'Not loaded'}</p>
-        <p>Selected Product: {selectedProduct ? selectedProduct.name : 'None'}</p>
-        <p>Image URL Available: {imageUrl ? 'Yes' : 'No'}</p>
+      {/* Helper text */}
+      <div style={{ marginTop: '30px', padding: '15px', backgroundColor: '#f9f9f9', borderRadius: '4px', fontSize: '14px' }}>
+        <h4 style={{ marginTop: 0 }}>About Prodigi Integration</h4>
+        <p>This app uses the Prodigi API to create customized products with your design. When you click "Continue to Customize," your image will be sent to Prodigi's customization platform where you can:</p>
+        <ul>
+          <li>Position and resize your image on the product</li>
+          <li>Complete your order with shipping details</li>
+          <li>Pay securely through Prodigi's checkout</li>
+        </ul>
+        <p><strong>Note:</strong> You may need to manually upload your image if automatic integration fails.</p>
       </div>
     </div>
   );
