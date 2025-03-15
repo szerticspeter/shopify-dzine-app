@@ -5,9 +5,13 @@
 
 [functions]
   node_bundler = "esbuild"
+  included_files = ["netlify/functions/package.json"]
 
 [build.environment]
   NODE_VERSION = "18"
+
+[[plugins]]
+  package = "@netlify/plugin-functions-install-core"
   
 [build.processing.css]
   bundle = true
