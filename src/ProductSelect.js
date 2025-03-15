@@ -48,13 +48,27 @@ function ProductSelect() {
     
     // Load Prodigi WebSDK script
     const loadProdigiSDK = () => {
+      // Remove any existing script first to prevent duplicates
+      const existingScripts = document.querySelectorAll('script[src*="prodigi-web-to-print-sdk"]');
+      existingScripts.forEach(script => script.remove());
+      
       const script = document.createElement('script');
       script.src = 'https://sdk.prodigi.com/web-to-print/v5/prodigi-web-to-print-sdk.umd.min.js';
-      script.async = true;
+      script.async = false; // Load synchronously to ensure it's available
+      script.id = 'prodigi-sdk-script';
       script.onload = () => {
-        console.log('Prodigi WebSDK loaded');
+        console.log('Prodigi WebSDK loaded successfully');
+        // Verify that the global object is available
+        if (window.ProdigiWebToPreviewAndPrint) {
+          console.log('ProdigiWebToPreviewAndPrint global object is available');
+        } else {
+          console.warn('ProdigiWebToPreviewAndPrint global object not found after loading script');
+        }
       };
-      document.body.appendChild(script);
+      script.onerror = (error) => {
+        console.error('Error loading Prodigi WebSDK:', error);
+      };
+      document.head.appendChild(script);
     };
     
     loadProdigiSDK();
@@ -70,7 +84,10 @@ function ProductSelect() {
       return;
     }
     
-    if (window.ProdigiWebToPrint) {
+    // Check if Prodigi SDK is loaded, using the correct global object name
+    if (window.ProdigiWebToPreviewAndPrint) {
+      console.log("Found ProdigiWebToPreviewAndPrint, initializing SDK");
+      
       // Initialize the Prodigi WebSDK with your client key
       const sdk = window.ProdigiWebToPreviewAndPrint.initialize({
         clientKey: PRODIGI_CLIENT_KEY
@@ -89,14 +106,43 @@ function ProductSelect() {
         onComplete: (result) => {
           console.log('Order completed', result);
           // Handle order completion (e.g., show success message)
+          alert('Order completed successfully!');
         },
         onCancel: () => {
           console.log('Order cancelled');
           // Handle cancellation
+          alert('Order was cancelled.');
         }
       });
     } else {
-      alert('Prodigi WebSDK is not loaded. Please refresh the page and try again.');
+      console.error("Prodigi SDK not found in window object. Available globals:", Object.keys(window).filter(key => key.includes('Prodigi')));
+      
+      // Try to load the SDK again
+      const script = document.createElement('script');
+      script.src = 'https://sdk.prodigi.com/web-to-print/v5/prodigi-web-to-print-sdk.umd.min.js';
+      script.async = true;
+      script.onload = () => {
+        console.log('Prodigi WebSDK loaded dynamically, attempting to initialize now');
+        if (window.ProdigiWebToPreviewAndPrint) {
+          const sdk = window.ProdigiWebToPreviewAndPrint.initialize({
+            clientKey: PRODIGI_CLIENT_KEY
+          });
+          
+          sdk.openProductBuilder({
+            sku: selectedProduct.prodigiSku,
+            images: [
+              {
+                url: imageUrl,
+                thumbnailUrl: imageUrl
+              }
+            ],
+            callbackUrl: window.location.origin
+          });
+        } else {
+          alert('Failed to load Prodigi WebSDK. Please refresh the page and try again.');
+        }
+      };
+      document.body.appendChild(script);
     }
   };
 
