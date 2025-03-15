@@ -67,80 +67,76 @@ function ProductSelect() {
       return;
     }
     
+    // Just open the Prodigi product page directly in a new tab
     try {
-      // Use direct Prodigi API endpoint (confirmed working with documentation)
       console.log('Using Prodigi API key:', PRODIGI_CLIENT_KEY ? 'Key available' : 'No key found');
       
-      // Construct the iframe embed URL - this is more reliable than the configurator URL
-      const prodigiEmbedUrl = `https://api.sandbox.prodigi.com/v4/create?product=${selectedProduct.prodigiSku}&client_key=${PRODIGI_CLIENT_KEY}`;
+      // Save the image to localStorage for demo purposes
+      // In a real app, you would upload the image to a server and get a URL
+      if (imageUrl.startsWith('data:')) {
+        localStorage.setItem('lastDesignImage', imageUrl);
+        console.log('Saved image to localStorage for demo');
+      }
       
-      // Create and append an iframe to embed the configurator
-      const iframe = document.createElement('iframe');
-      iframe.src = prodigiEmbedUrl;
-      iframe.style.position = 'fixed';
-      iframe.style.top = '0';
-      iframe.style.left = '0';
-      iframe.style.width = '100%';
-      iframe.style.height = '100%';
-      iframe.style.border = 'none';
-      iframe.style.zIndex = '9999';
+      // Direct to Prodigi's product page
+      const prodigiUrl = `https://www.prodigi.com/products/${selectedProduct.prodigiSku}/`;
+      console.log('Opening Prodigi product page:', prodigiUrl);
       
-      // Allow closing the iframe by clicking outside
-      const overlay = document.createElement('div');
-      overlay.style.position = 'fixed';
-      overlay.style.top = '0';
-      overlay.style.left = '0';
-      overlay.style.width = '100%';
-      overlay.style.height = '100%';
-      overlay.style.backgroundColor = 'rgba(0,0,0,0.7)';
-      overlay.style.zIndex = '9998';
-      overlay.style.cursor = 'pointer';
+      // Show instructions before opening
+      alert('You will now be redirected to Prodigi to complete your order. Please upload your image manually on their site.');
       
-      // Close button
-      const closeButton = document.createElement('button');
-      closeButton.innerText = 'Close Editor';
-      closeButton.style.position = 'fixed';
-      closeButton.style.top = '10px';
-      closeButton.style.right = '10px';
-      closeButton.style.zIndex = '10000';
-      closeButton.style.padding = '10px 15px';
-      closeButton.style.backgroundColor = '#f44336';
-      closeButton.style.color = 'white';
-      closeButton.style.border = 'none';
-      closeButton.style.borderRadius = '4px';
-      closeButton.style.cursor = 'pointer';
+      // Open in new tab
+      window.open(prodigiUrl, '_blank');
       
-      // Close function
-      const closeEditor = () => {
-        document.body.removeChild(iframe);
-        document.body.removeChild(overlay);
-        document.body.removeChild(closeButton);
-        document.body.style.overflow = 'auto';
+      // Show download button for the image
+      const downloadContainer = document.createElement('div');
+      downloadContainer.style.padding = '20px';
+      downloadContainer.style.margin = '20px auto';
+      downloadContainer.style.maxWidth = '500px';
+      downloadContainer.style.backgroundColor = '#f5f5f5';
+      downloadContainer.style.borderRadius = '8px';
+      downloadContainer.style.textAlign = 'center';
+      
+      const heading = document.createElement('h3');
+      heading.innerText = 'Download Your Image';
+      heading.style.marginTop = '0';
+      
+      const instructions = document.createElement('p');
+      instructions.innerText = 'First download your image, then upload it to Prodigi when prompted.';
+      
+      const downloadButton = document.createElement('button');
+      downloadButton.innerText = 'Download Image';
+      downloadButton.style.padding = '10px 20px';
+      downloadButton.style.backgroundColor = '#2196F3';
+      downloadButton.style.color = 'white';
+      downloadButton.style.border = 'none';
+      downloadButton.style.borderRadius = '4px';
+      downloadButton.style.cursor = 'pointer';
+      downloadButton.style.marginTop = '10px';
+      
+      downloadButton.onclick = () => {
+        // Create an anchor element for downloading
+        const a = document.createElement('a');
+        a.href = imageUrl;
+        a.download = 'stylized-design.jpg';
+        a.click();
       };
       
-      overlay.addEventListener('click', closeEditor);
-      closeButton.addEventListener('click', closeEditor);
+      downloadContainer.appendChild(heading);
+      downloadContainer.appendChild(instructions);
+      downloadContainer.appendChild(downloadButton);
       
-      // Prevent scrolling the main page
-      document.body.style.overflow = 'hidden';
-      
-      // Add elements to the page
-      document.body.appendChild(overlay);
-      document.body.appendChild(iframe);
-      document.body.appendChild(closeButton);
-      
-      console.log('Prodigi editor embedded');
-    } catch (error) {
-      console.error('Error opening Prodigi editor:', error);
-      
-      // Fallback to redirecting to a simpler version of the URL
-      try {
-        const fallbackUrl = `https://www.prodigi.com/products/${selectedProduct.prodigiSku}`;
-        window.open(fallbackUrl, '_blank');
-        alert('Opened Prodigi product page. Please upload your image there manually.');
-      } catch (fallbackError) {
-        alert('There was an error opening the product editor. Please try again or refresh the page.');
+      // Find a good place to insert it in the DOM
+      const actionButtons = document.querySelector('.action-buttons');
+      if (actionButtons) {
+        actionButtons.parentNode.insertBefore(downloadContainer, actionButtons.nextSibling);
+      } else {
+        // Fallback - add to body
+        document.body.appendChild(downloadContainer);
       }
+    } catch (error) {
+      console.error('Error opening Prodigi product page:', error);
+      alert('There was an error opening the product page. Please try again or refresh the page.');
     }
   };
 
@@ -269,13 +265,16 @@ function ProductSelect() {
       {/* Helper text */}
       <div style={{ marginTop: '30px', padding: '15px', backgroundColor: '#f9f9f9', borderRadius: '4px', fontSize: '14px' }}>
         <h4 style={{ marginTop: 0 }}>About Prodigi Integration</h4>
-        <p>This app uses the Prodigi API to create customized products with your design. When you click "Continue to Customize," your image will be sent to Prodigi's customization platform where you can:</p>
-        <ul>
-          <li>Position and resize your image on the product</li>
+        <p>This app works with Prodigi to create customized products with your design:</p>
+        <ol>
+          <li>Select your product type above</li>
+          <li>Click "Continue to Customize" to go to Prodigi's website</li>
+          <li>Download your image using the download button that will appear</li>
+          <li>Upload your downloaded image to Prodigi when prompted</li>
           <li>Complete your order with shipping details</li>
           <li>Pay securely through Prodigi's checkout</li>
-        </ul>
-        <p><strong>Note:</strong> You may need to manually upload your image if automatic integration fails.</p>
+        </ol>
+        <p><strong>Note:</strong> Prodigi handles all product creation and shipping.</p>
       </div>
     </div>
   );
