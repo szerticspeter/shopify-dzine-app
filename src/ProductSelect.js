@@ -17,8 +17,9 @@ function ProductSelect() {
     { id: 'tshirt', name: 'T-Shirt', prodigiSku: 'GLOBAL-TSHIRT-L' }
   ];
   
-  // For image uploads via Prodigi WebSDK - Use Prodigi's demo key for testing
-  const PRODIGI_CLIENT_KEY = "prodigi-demo-key";
+  // For image uploads via Prodigi WebSDK
+  // Use environment variable if available, fall back to demo key for testing
+  const PRODIGI_CLIENT_KEY = process.env.REACT_APP_PRODIGI_API_KEY || "prodigi-demo-key";
   
   // Test image URL for debugging (Unsplash image)
   const TEST_IMAGE_URL = "https://plus.unsplash.com/premium_photo-1664474619075-644dd191935f?q=80&w=1469&auto=format&fit=crop&ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D";
@@ -108,11 +109,13 @@ function ProductSelect() {
     console.log('Window properties containing "prodigi":', 
       Object.keys(window).filter(key => key.toLowerCase().includes('prodigi')));
     
-    // Direct integration approach - Use a simpler approach for testing
+    // Direct integration approach
     try {
+      console.log('Using Prodigi API key:', PRODIGI_CLIENT_KEY ? 'Key available' : 'No key found');
+      
       // Try using window.open with the editor URL directly
       const directUrl = `https://configurator.prodigi.com/product/configure?product=${selectedProduct.prodigiSku}&client_key=${PRODIGI_CLIENT_KEY}`;
-      console.log('Opening direct URL:', directUrl);
+      console.log('Opening direct URL (domain only for security):', 'https://configurator.prodigi.com/...');
       
       // Open in new tab
       window.open(directUrl, '_blank');

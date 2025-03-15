@@ -18,6 +18,7 @@ This amazing and user-friendly application provides a seamless workflow for user
 
 Make sure your Netlify environment variables include:
 - `DZINE_API_KEY` - Your Dzine.ai API key
+- `REACT_APP_PRODIGI_API_KEY` - Your Prodigi API key
 
 ### 3. Deploy the Application
 
