@@ -101,7 +101,7 @@ function App() {
           style_intensity: 1,
           structure_match: 0.8,
           color_match: 0,
-          face_match: 0
+          face_match: 1
         };
         
         console.log('Creating task with:', taskRequestBody);
