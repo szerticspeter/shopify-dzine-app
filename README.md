@@ -1,6 +1,6 @@
 # Shopify Dzine.ai Canvas App with Gelato Integration
 
-This amazing application provides a seamless workflow for users to:
+This amazing and user-friendly application provides a seamless workflow for users to:
 1. Upload an image to your Shopify store
 2. Apply artistic styles using Dzine.ai
 3. Send the stylized image to Gelato's Personalization Studio
