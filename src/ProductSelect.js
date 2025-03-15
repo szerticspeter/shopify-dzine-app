@@ -24,19 +24,18 @@ function ProductSelect() {
 
   useEffect(() => {
     try {
-      // Get image URL or Base64 data from the query parameters
-      const params = new URLSearchParams(location.search);
-      const image = params.get('image');
+      // Get image from sessionStorage instead of URL parameter
+      const image = sessionStorage.getItem('stylizedImage');
       
       if (!image) {
-        throw new Error('No image data provided');
+        throw new Error('No image data found. Please upload and stylize an image first.');
       }
 
       // Check if it's a Base64 data URL
       if (image.startsWith('data:image/')) {
-        console.log('Received Base64 image data');
+        console.log('Received Base64 image data from sessionStorage');
       } else {
-        console.log('Received image URL:', image);
+        console.log('Received image URL from sessionStorage');
       }
       
       setImageUrl(image);

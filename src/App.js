@@ -236,7 +236,11 @@ function App() {
                 <div className="result-section">
                   <img src={result.url} alt="Stylized result" />
                   <button 
-                    onClick={() => window.location.href = `/products?image=${encodeURIComponent(result.url)}`}
+                    onClick={() => {
+                      // Store image in sessionStorage instead of URL parameter
+                      sessionStorage.setItem('stylizedImage', result.url);
+                      window.location.href = '/products';
+                    }}
                     className="create-product-button"
                   >
                     Continue to Products
