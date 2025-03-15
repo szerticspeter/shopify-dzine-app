@@ -5,7 +5,13 @@ function ProductSelect() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [imageUrl, setImageUrl] = useState(null);
-  const [selectedProduct, setSelectedProduct] = useState(null);
+  // Default selected product to the cushion from the example
+  const [selectedProduct, setSelectedProduct] = useState({
+    id: 'cushion', 
+    name: 'Suede Cushion', 
+    prodigiUrl: 'https://www.prodigi.com/products/homeware/cushions/suede-cushion/',
+    prodigiShopCode: 'suede_12x12_cushion'
+  });
   const [sdkLoaded, setSdkLoaded] = useState(false);
   const location = useLocation();
   const navigate = useNavigate();
@@ -120,15 +126,17 @@ function ProductSelect() {
       // DIRECT URL APPROACH: Use the direct shop.prodigi.com URL with image parameter
       // Format: https://shop.prodigi.com/prodigi/create/[product_code]?image=[image_url]|[dimensions]
       
-      // Get the product code for the selected product
-      const productCode = selectedProduct.prodigiShopCode;
+      // Get the templateId for the selected product (not SKU - templateId is needed for deep links)
+      const templateId = selectedProduct.prodigiShopCode;
+      console.log('Using templateId for Prodigi deep link:', templateId);
       
       // Calculate image dimensions (we'll use fixed dimensions for now)
       // In a real app, you would calculate this from the actual image
       const imageDimensions = "1280x1280"; // Default dimensions
       
-      // Build the direct shop URL with image parameter
-      const directShopUrl = `https://shop.prodigi.com/prodigi/create/${productCode}?image=${encodeURIComponent(imageUrl)}|${imageDimensions}`;
+      // Build the direct shop URL with image parameter using the templateId 
+      // Format: https://shop.prodigi.com/${brandName}/create/${templateId}?image=${imageUrl}|${imageWidth}x${imageHeight}
+      const directShopUrl = `https://shop.prodigi.com/prodigi/create/${templateId}?image=${encodeURIComponent(imageUrl)}|${imageDimensions}`;
       
       console.log('Opening Prodigi shop URL with direct image link:', directShopUrl);
       
@@ -377,14 +385,14 @@ function ProductSelect() {
         <h4 style={{ marginTop: 0 }}>About Prodigi Integration</h4>
         <p>This app works with Prodigi to create customized products with your design:</p>
         <ol>
-          <li>Select your product type above</li>
+          <li>The Suede Cushion (12"x12") is pre-selected from the Prodigi example</li>
           <li>Click "Continue to Customize" to go to Prodigi's website</li>
-          <li>Download your image using the download button that will appear</li>
-          <li>Upload your downloaded image to Prodigi when prompted</li>
+          <li>Your stylized image will be automatically loaded into the product customizer</li>
+          <li>Adjust the image positioning on the product as needed</li>
           <li>Complete your order with shipping details</li>
           <li>Pay securely through Prodigi's checkout</li>
         </ol>
-        <p><strong>Note:</strong> Prodigi handles all product creation and shipping.</p>
+        <p><strong>Note:</strong> Prodigi handles all product creation and shipping. Currently using the templateId "suede_12x12_cushion" from the Prodigi SDK example.</p>
       </div>
     </div>
   );

@@ -10,21 +10,8 @@ function App() {
   const [result, setResult] = useState(null);
   const [styles, setStyles] = useState([]);
 
-  // Mock styles for testing
+  // Fetch available styles from Dzine.ai
   useEffect(() => {
-    // Use mock styles instead of fetching from Dzine API
-    const mockStyles = [
-      { style_code: 'mock-style-1', name: 'Watercolor' },
-      { style_code: 'mock-style-2', name: 'Oil Painting' },
-      { style_code: 'mock-style-3', name: 'Sketch' },
-      { style_code: 'mock-style-4', name: 'Abstract' },
-      { style_code: 'mock-style-5', name: 'Digital Art' },
-      { style_code: 'mock-style-6', name: 'Pencil Drawing' }
-    ];
-    
-    setStyles(mockStyles);
-    
-    /* REAL IMPLEMENTATION COMMENTED OUT
     const fetchStyles = async () => {
       try {
         const response = await fetch('https://papi.dzine.ai/openapi/v1/style/list', {
@@ -48,12 +35,23 @@ function App() {
         }
       } catch (error) {
         console.error('Error fetching styles:', error);
-        alert('Error loading available styles');
+        
+        // Fallback to mock styles if API call fails
+        const mockStyles = [
+          { style_code: 'mock-style-1', name: 'Watercolor' },
+          { style_code: 'mock-style-2', name: 'Oil Painting' },
+          { style_code: 'mock-style-3', name: 'Sketch' },
+          { style_code: 'mock-style-4', name: 'Abstract' },
+          { style_code: 'mock-style-5', name: 'Digital Art' },
+          { style_code: 'mock-style-6', name: 'Pencil Drawing' }
+        ];
+        
+        setStyles(mockStyles);
+        alert('Error loading styles from API. Using mock styles for testing.');
       }
     };
 
     fetchStyles();
-    */
   }, []);
 
   const handleImageUpload = (event) => {
@@ -71,26 +69,6 @@ function App() {
       setIsProcessing(true);
       
       try {
-        // MOCK IMPLEMENTATION FOR TESTING
-        // Skip Dzine.ai API calls and just use the uploaded image directly
-        
-        // Convert the uploaded image to a Base64 data URL
-        const reader = new FileReader();
-        reader.readAsDataURL(uploadedImage);
-        
-        // When the reader is done, set the result
-        reader.onloadend = async () => {
-          const base64Image = reader.result;
-          console.log('Mock processing - created Base64 image');
-          
-          // Simulate a short processing delay
-          await new Promise(resolve => setTimeout(resolve, 1500));
-          
-          // Set the result to the Base64 data URL
-          setResult({ url: base64Image });
-        };
-        
-        /* REAL IMPLEMENTATION COMMENTED OUT
         // First, upload the image
         console.log('Starting image upload...');
         const formData = new FormData();
@@ -183,6 +161,24 @@ function App() {
         } else {
           throw new Error('No result URL found in successful response');
         }
+        
+        // Fallback implementation in case the API call fails
+        /*
+        // Convert the uploaded image to a Base64 data URL
+        const reader = new FileReader();
+        reader.readAsDataURL(uploadedImage);
+        
+        // When the reader is done, set the result
+        reader.onloadend = async () => {
+          const base64Image = reader.result;
+          console.log('Mock processing - created Base64 image');
+          
+          // Simulate a short processing delay
+          await new Promise(resolve => setTimeout(resolve, 1500));
+          
+          // Set the result to the Base64 data URL
+          setResult({ url: base64Image });
+        };
         */
         
       } catch (error) {
