@@ -84,6 +84,7 @@
                 <option value="canvas-wrap">Canvas Print</option>
                 <option value="white-mug">Coffee Mug</option>
                 <option value="mens-classic-crew">T-Shirt</option>
+                <option value="suede_12x12_cushion">Suede Cushion (12×12)</option>
             </select>
         </div>
 
@@ -97,6 +98,7 @@
             <button id="test-prodigi-sdk">Launch Prodigi SDK</button>
             <button id="test-direct-url">Test Direct URL</button>
             <button id="test-iframe">Test iframe Approach</button>
+            <button id="test-direct-link" style="background-color: #4CAF50;">Test Direct Shop Link</button>
         </div>
         
         <div id="result" class="result-container">Results will appear here</div>
@@ -132,15 +134,23 @@
             const productMapping = {
                 'canvas-wrap': {
                     name: 'Canvas Print',
-                    url: 'https://www.prodigi.com/products/canvas-posters/canvas-wrap/'
+                    url: 'https://www.prodigi.com/products/canvas-posters/canvas-wrap/',
+                    shopUrl: 'https://shop.prodigi.com/prodigi/create/canvas_wrap'
                 },
                 'white-mug': {
                     name: 'Coffee Mug',
-                    url: 'https://www.prodigi.com/products/drinkware/mugs/white-mug/'
+                    url: 'https://www.prodigi.com/products/drinkware/mugs/white-mug/',
+                    shopUrl: 'https://shop.prodigi.com/prodigi/create/white_ceramic_mug'
                 },
                 'mens-classic-crew': {
                     name: 'T-Shirt',
-                    url: 'https://www.prodigi.com/products/apparel/t-shirts/mens-classic-crew/'
+                    url: 'https://www.prodigi.com/products/apparel/t-shirts/mens-classic-crew/',
+                    shopUrl: 'https://shop.prodigi.com/prodigi/create/mens_classic_crew'
+                },
+                'suede_12x12_cushion': {
+                    name: 'Suede Cushion (12×12)',
+                    url: 'https://www.prodigi.com/products/homeware/cushions/suede-cushion/',
+                    shopUrl: 'https://shop.prodigi.com/prodigi/create/suede_12x12_cushion'
                 }
             };
 
@@ -273,6 +283,36 @@
                 } catch (error) {
                     console.error('Error creating iframe:', error);
                     resultDiv.innerHTML = `<p>❌ Error creating iframe: ${error.message}</p>`;
+                }
+            });
+            
+            // Test button for direct shop.prodigi.com link with image parameter
+            document.getElementById('test-direct-link').addEventListener('click', function() {
+                const resultDiv = document.getElementById('result');
+                const productId = getSelectedProduct();
+                const product = productMapping[productId];
+                
+                try {
+                    // This is the key insight! Prodigi has a direct URL format that loads the image automatically
+                    // Format: https://shop.prodigi.com/prodigi/create/[product_id]?image=[image_url]|[dimensions]
+                    
+                    // Get image dimensions (we'll use a fixed size for the test)
+                    const imageDimensions = "1280x1280"; // Default dimensions
+                    
+                    // Build the direct product URL with image parameter
+                    const directShopUrl = `${product.shopUrl}?image=${encodeURIComponent(testImageUrl)}|${imageDimensions}`;
+                    
+                    resultDiv.innerHTML = `
+                        <p>Opening Prodigi shop URL with direct image loading:</p>
+                        <code>${directShopUrl}</code>
+                        <p>✅ This approach should load the product WITH your image already applied!</p>
+                    `;
+                    
+                    // Open in new tab
+                    window.open(directShopUrl, '_blank');
+                } catch (error) {
+                    console.error('Error opening direct shop URL:', error);
+                    resultDiv.innerHTML = `<p>❌ Error opening direct shop URL: ${error.message}</p>`;
                 }
             });
         });
