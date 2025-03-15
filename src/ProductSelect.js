@@ -6,6 +6,7 @@ function ProductSelect() {
   const [error, setError] = useState(null);
   const [imageUrl, setImageUrl] = useState(null);
   const [selectedProduct, setSelectedProduct] = useState(null);
+  const [sdkLoaded, setSdkLoaded] = useState(false);
   const location = useLocation();
   const navigate = useNavigate();
   
@@ -16,8 +17,8 @@ function ProductSelect() {
     { id: 'tshirt', name: 'T-Shirt', prodigiSku: 'GLOBAL-TSHIRT-L' }
   ];
   
-  // For image uploads via Prodigi WebSDK
-  const PRODIGI_CLIENT_KEY = "demo"; // Replace with your Prodigi client key
+  // For image uploads via Prodigi WebSDK - Use Prodigi's demo key for testing
+  const PRODIGI_CLIENT_KEY = "prodigi-demo-key";
   
   // Test image URL for debugging (Unsplash image)
   const TEST_IMAGE_URL = "https://plus.unsplash.com/premium_photo-1664474619075-644dd191935f?q=80&w=1469&auto=format&fit=crop&ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D";
@@ -25,7 +26,7 @@ function ProductSelect() {
   useEffect(() => {
     try {
       // Get image from sessionStorage instead of URL parameter
-      const image = sessionStorage.getItem('stylizedImage');
+      const image = sessionStorage.getItem('stylizedImage') || TEST_IMAGE_URL; // Fallback to test image
       
       if (!image) {
         throw new Error('No image data found. Please upload and stylize an image first.');
@@ -52,81 +53,80 @@ function ProductSelect() {
       const existingScripts = document.querySelectorAll('script[src*="prodigi-web-to-print-sdk"]');
       existingScripts.forEach(script => script.remove());
       
+      console.log('Loading Prodigi SDK script...');
+      
       const script = document.createElement('script');
       script.src = 'https://sdk.prodigi.com/web-to-print/v5/prodigi-web-to-print-sdk.umd.min.js';
-      script.async = false; // Load synchronously to ensure it's available
+      script.async = false;
       script.id = 'prodigi-sdk-script';
+      
       script.onload = () => {
-        console.log('Prodigi WebSDK loaded successfully');
-        // Verify that the global object is available
+        console.log('Prodigi WebSDK script loaded successfully');
+        setSdkLoaded(true);
+        
+        // Check if the SDK is properly loaded
         if (window.ProdigiWebToPreviewAndPrint) {
           console.log('ProdigiWebToPreviewAndPrint global object is available');
         } else {
-          console.warn('ProdigiWebToPreviewAndPrint global object not found after loading script');
+          console.warn('SDK script loaded but ProdigiWebToPreviewAndPrint global object not found');
+          console.log('Available window properties:', Object.keys(window).filter(key => key.toLowerCase().includes('prodigi')));
         }
       };
+      
       script.onerror = (error) => {
         console.error('Error loading Prodigi WebSDK:', error);
+        alert('Failed to load the Prodigi SDK. Please refresh and try again.');
       };
+      
       document.head.appendChild(script);
     };
     
     loadProdigiSDK();
-  }, [location.search]);
+  }, []);
 
   const handleProductSelect = (productType) => {
     setSelectedProduct(productType);
+    console.log('Selected product:', productType);
   };
   
   const openProdigiEditor = () => {
-    if (!selectedProduct || !imageUrl) {
-      alert('Please select a product and ensure image is loaded');
+    console.log('Opening Prodigi editor...');
+    
+    if (!selectedProduct) {
+      alert('Please select a product first');
       return;
     }
     
-    // Check if Prodigi SDK is loaded, using the correct global object name
-    if (window.ProdigiWebToPreviewAndPrint) {
-      console.log("Found ProdigiWebToPreviewAndPrint, initializing SDK");
+    if (!imageUrl) {
+      alert('No image available. Please go back and create an image first.');
+      return;
+    }
+    
+    // For debugging - let's see what's available in the window object
+    console.log('Checking for Prodigi SDK availability...');
+    console.log('SDK Loaded state:', sdkLoaded);
+    console.log('Window properties containing "prodigi":', 
+      Object.keys(window).filter(key => key.toLowerCase().includes('prodigi')));
+    
+    // Direct integration approach - Use a simpler approach for testing
+    try {
+      // Try using window.open with the editor URL directly
+      const directUrl = `https://configurator.prodigi.com/product/configure?product=${selectedProduct.prodigiSku}&client_key=${PRODIGI_CLIENT_KEY}`;
+      console.log('Opening direct URL:', directUrl);
       
-      // Initialize the Prodigi WebSDK with your client key
-      const sdk = window.ProdigiWebToPreviewAndPrint.initialize({
-        clientKey: PRODIGI_CLIENT_KEY
-      });
+      // Open in new tab
+      window.open(directUrl, '_blank');
       
-      // Launch the editor with the selected product and image
-      sdk.openProductBuilder({
-        sku: selectedProduct.prodigiSku,
-        images: [
-          {
-            url: imageUrl,
-            thumbnailUrl: imageUrl
-          }
-        ],
-        callbackUrl: window.location.origin, // Optional: URL to return to after order completion
-        onComplete: (result) => {
-          console.log('Order completed', result);
-          // Handle order completion (e.g., show success message)
-          alert('Order completed successfully!');
-        },
-        onCancel: () => {
-          console.log('Order cancelled');
-          // Handle cancellation
-          alert('Order was cancelled.');
-        }
-      });
-    } else {
-      console.error("Prodigi SDK not found in window object. Available globals:", Object.keys(window).filter(key => key.includes('Prodigi')));
-      
-      // Try to load the SDK again
-      const script = document.createElement('script');
-      script.src = 'https://sdk.prodigi.com/web-to-print/v5/prodigi-web-to-print-sdk.umd.min.js';
-      script.async = true;
-      script.onload = () => {
-        console.log('Prodigi WebSDK loaded dynamically, attempting to initialize now');
-        if (window.ProdigiWebToPreviewAndPrint) {
+      // As a fallback, also try the SDK if available
+      if (window.ProdigiWebToPreviewAndPrint) {
+        console.log('SDK global object found, attempting initialization');
+        
+        try {
           const sdk = window.ProdigiWebToPreviewAndPrint.initialize({
             clientKey: PRODIGI_CLIENT_KEY
           });
+          
+          console.log('SDK initialized successfully, opening product builder');
           
           sdk.openProductBuilder({
             sku: selectedProduct.prodigiSku,
@@ -138,11 +138,15 @@ function ProductSelect() {
             ],
             callbackUrl: window.location.origin
           });
-        } else {
-          alert('Failed to load Prodigi WebSDK. Please refresh the page and try again.');
+        } catch (sdkError) {
+          console.error('Error initializing Prodigi SDK:', sdkError);
         }
-      };
-      document.body.appendChild(script);
+      } else {
+        console.warn('ProdigiWebToPreviewAndPrint not found in window object');
+      }
+    } catch (error) {
+      console.error('Error opening Prodigi editor:', error);
+      alert('There was an error opening the product editor. Please try again or refresh the page.');
     }
   };
 
@@ -234,7 +238,10 @@ function ProductSelect() {
       {/* Continue button */}
       <div className="action-buttons" style={{ marginTop: '30px', textAlign: 'center' }}>
         <button 
-          onClick={openProdigiEditor}
+          onClick={() => {
+            console.log('Continue to Customize button clicked');
+            openProdigiEditor();
+          }}
           disabled={!selectedProduct}
           style={{
             backgroundColor: selectedProduct ? '#4CAF50' : '#ccc',
@@ -263,6 +270,13 @@ function ProductSelect() {
         >
           Create Another Design
         </button>
+      </div>
+      
+      {/* For development purposes - show status of SDK loading */}
+      <div style={{ marginTop: '30px', padding: '10px', backgroundColor: '#f9f9f9', borderRadius: '4px', fontSize: '12px' }}>
+        <p>SDK Status: {sdkLoaded ? 'Loaded' : 'Not loaded'}</p>
+        <p>Selected Product: {selectedProduct ? selectedProduct.name : 'None'}</p>
+        <p>Image URL Available: {imageUrl ? 'Yes' : 'No'}</p>
       </div>
     </div>
   );
