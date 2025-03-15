@@ -1,6 +1,6 @@
 {
   "name": "shopify-dzine-app",
-  "version": "1.0.0",
+  "version": "0.1.0",
   "private": true,
   "dependencies": {
     "@shopify/app-bridge": "^3.7.10",
