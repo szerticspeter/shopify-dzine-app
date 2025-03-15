@@ -10,11 +10,32 @@ function ProductSelect() {
   const location = useLocation();
   const navigate = useNavigate();
   
-  // Define product types with direct Prodigi product URLs
+  // Define product types with direct Prodigi shop URLs and product codes
   const productTypes = [
-    { id: 'canvas', name: 'Canvas Print', prodigiUrl: 'https://www.prodigi.com/products/canvas-posters/canvas-wrap/' },
-    { id: 'mug', name: 'Coffee Mug', prodigiUrl: 'https://www.prodigi.com/products/drinkware/mugs/white-mug/' },
-    { id: 'tshirt', name: 'T-Shirt', prodigiUrl: 'https://www.prodigi.com/products/apparel/t-shirts/mens-classic-crew/' }
+    { 
+      id: 'canvas', 
+      name: 'Canvas Print', 
+      prodigiUrl: 'https://www.prodigi.com/products/canvas-posters/canvas-wrap/',
+      prodigiShopCode: 'canvas_wrap'
+    },
+    { 
+      id: 'mug', 
+      name: 'Coffee Mug', 
+      prodigiUrl: 'https://www.prodigi.com/products/drinkware/mugs/white-mug/',
+      prodigiShopCode: 'white_ceramic_mug'
+    },
+    { 
+      id: 'tshirt', 
+      name: 'T-Shirt', 
+      prodigiUrl: 'https://www.prodigi.com/products/apparel/t-shirts/mens-classic-crew/',
+      prodigiShopCode: 'mens_classic_crew'
+    },
+    { 
+      id: 'cushion', 
+      name: 'Suede Cushion', 
+      prodigiUrl: 'https://www.prodigi.com/products/homeware/cushions/suede-cushion/',
+      prodigiShopCode: 'suede_12x12_cushion'
+    }
   ];
   
   // For image uploads via Prodigi WebSDK
@@ -67,7 +88,6 @@ function ProductSelect() {
       return;
     }
     
-    // Just open the Prodigi product page directly in a new tab
     try {
       console.log('Using Prodigi API key:', PRODIGI_CLIENT_KEY ? 'Key available' : 'No key found');
       
@@ -76,67 +96,157 @@ function ProductSelect() {
       if (imageUrl.startsWith('data:')) {
         localStorage.setItem('lastDesignImage', imageUrl);
         console.log('Saved image to localStorage for demo');
+        
+        // For base64 images, we need to upload it somewhere to get a URL
+        // This is a simplification - in a real app, you would upload to your server
+        alert('For Base64 images, you need to download and upload manually. We will use the manual approach for now.');
+        
+        // Use the regular product page approach for Base64 images
+        const prodigiUrl = selectedProduct.prodigiUrl;
+        console.log('Opening Prodigi product page for manual upload:', prodigiUrl);
+        
+        // Show manual upload instructions
+        alert('You will now be redirected to Prodigi to complete your order. Please download and upload your image manually on their site.');
+        
+        // Open in new tab
+        window.open(prodigiUrl, '_blank');
+        
+        // Show download button for the image
+        displayDownloadButton();
+        
+        return; // Exit early since we can't use direct URL with base64 images
       }
       
-      // Use the full direct URL to Prodigi's product page
-      const prodigiUrl = selectedProduct.prodigiUrl;
-      console.log('Opening Prodigi product page:', prodigiUrl);
+      // DIRECT URL APPROACH: Use the direct shop.prodigi.com URL with image parameter
+      // Format: https://shop.prodigi.com/prodigi/create/[product_code]?image=[image_url]|[dimensions]
       
-      // Show instructions before opening
-      alert('You will now be redirected to Prodigi to complete your order. Please upload your image manually on their site.');
+      // Get the product code for the selected product
+      const productCode = selectedProduct.prodigiShopCode;
+      
+      // Calculate image dimensions (we'll use fixed dimensions for now)
+      // In a real app, you would calculate this from the actual image
+      const imageDimensions = "1280x1280"; // Default dimensions
+      
+      // Build the direct shop URL with image parameter
+      const directShopUrl = `https://shop.prodigi.com/prodigi/create/${productCode}?image=${encodeURIComponent(imageUrl)}|${imageDimensions}`;
+      
+      console.log('Opening Prodigi shop URL with direct image link:', directShopUrl);
+      
+      // Show success message
+      alert('You will now be redirected to Prodigi with your image already loaded. You can customize and purchase your product there.');
       
       // Open in new tab
-      window.open(prodigiUrl, '_blank');
+      window.open(directShopUrl, '_blank');
       
-      // Show download button for the image
-      const downloadContainer = document.createElement('div');
-      downloadContainer.style.padding = '20px';
-      downloadContainer.style.margin = '20px auto';
-      downloadContainer.style.maxWidth = '500px';
-      downloadContainer.style.backgroundColor = '#f5f5f5';
-      downloadContainer.style.borderRadius = '8px';
-      downloadContainer.style.textAlign = 'center';
+      // Display a success message on the page
+      const successContainer = document.createElement('div');
+      successContainer.style.padding = '20px';
+      successContainer.style.margin = '20px auto';
+      successContainer.style.maxWidth = '500px';
+      successContainer.style.backgroundColor = '#e8f5e9'; // Light green background
+      successContainer.style.borderRadius = '8px';
+      successContainer.style.textAlign = 'center';
+      successContainer.style.border = '1px solid #4caf50';
       
-      const heading = document.createElement('h3');
-      heading.innerText = 'Download Your Image';
-      heading.style.marginTop = '0';
+      const successHeading = document.createElement('h3');
+      successHeading.innerText = 'Redirected to Prodigi';
+      successHeading.style.marginTop = '0';
+      successHeading.style.color = '#2e7d32';
       
-      const instructions = document.createElement('p');
-      instructions.innerText = 'First download your image, then upload it to Prodigi when prompted.';
+      const successText = document.createElement('p');
+      successText.innerText = 'Your image has been directly loaded into Prodigi\'s customizer. If the page didn\'t open correctly, click the button below to try again.';
       
-      const downloadButton = document.createElement('button');
-      downloadButton.innerText = 'Download Image';
-      downloadButton.style.padding = '10px 20px';
-      downloadButton.style.backgroundColor = '#2196F3';
-      downloadButton.style.color = 'white';
-      downloadButton.style.border = 'none';
-      downloadButton.style.borderRadius = '4px';
-      downloadButton.style.cursor = 'pointer';
-      downloadButton.style.marginTop = '10px';
+      const retryButton = document.createElement('button');
+      retryButton.innerText = 'Try Again';
+      retryButton.style.padding = '10px 20px';
+      retryButton.style.backgroundColor = '#4caf50';
+      retryButton.style.color = 'white';
+      retryButton.style.border = 'none';
+      retryButton.style.borderRadius = '4px';
+      retryButton.style.cursor = 'pointer';
+      retryButton.style.marginTop = '10px';
       
-      downloadButton.onclick = () => {
-        // Create an anchor element for downloading
-        const a = document.createElement('a');
-        a.href = imageUrl;
-        a.download = 'stylized-design.jpg';
-        a.click();
+      retryButton.onclick = () => {
+        window.open(directShopUrl, '_blank');
       };
       
-      downloadContainer.appendChild(heading);
-      downloadContainer.appendChild(instructions);
-      downloadContainer.appendChild(downloadButton);
+      successContainer.appendChild(successHeading);
+      successContainer.appendChild(successText);
+      successContainer.appendChild(retryButton);
       
       // Find a good place to insert it in the DOM
       const actionButtons = document.querySelector('.action-buttons');
       if (actionButtons) {
-        actionButtons.parentNode.insertBefore(downloadContainer, actionButtons.nextSibling);
+        actionButtons.parentNode.insertBefore(successContainer, actionButtons.nextSibling);
       } else {
         // Fallback - add to body
-        document.body.appendChild(downloadContainer);
+        document.body.appendChild(successContainer);
       }
     } catch (error) {
       console.error('Error opening Prodigi product page:', error);
       alert('There was an error opening the product page. Please try again or refresh the page.');
+      
+      // Fallback to the direct product URL without image parameter
+      const prodigiUrl = selectedProduct.prodigiUrl;
+      console.log('Falling back to regular product page:', prodigiUrl);
+      
+      // Show fallback instructions
+      alert('Falling back to manual upload. You will need to download and upload your image manually.');
+      
+      // Open in new tab
+      window.open(prodigiUrl, '_blank');
+      
+      // Show download button for the image as fallback
+      displayDownloadButton();
+    }
+  };
+  
+  // Helper function to display the download button for manual uploads
+  const displayDownloadButton = () => {
+    const downloadContainer = document.createElement('div');
+    downloadContainer.style.padding = '20px';
+    downloadContainer.style.margin = '20px auto';
+    downloadContainer.style.maxWidth = '500px';
+    downloadContainer.style.backgroundColor = '#f5f5f5';
+    downloadContainer.style.borderRadius = '8px';
+    downloadContainer.style.textAlign = 'center';
+    
+    const heading = document.createElement('h3');
+    heading.innerText = 'Download Your Image';
+    heading.style.marginTop = '0';
+    
+    const instructions = document.createElement('p');
+    instructions.innerText = 'First download your image, then upload it to Prodigi when prompted.';
+    
+    const downloadButton = document.createElement('button');
+    downloadButton.innerText = 'Download Image';
+    downloadButton.style.padding = '10px 20px';
+    downloadButton.style.backgroundColor = '#2196F3';
+    downloadButton.style.color = 'white';
+    downloadButton.style.border = 'none';
+    downloadButton.style.borderRadius = '4px';
+    downloadButton.style.cursor = 'pointer';
+    downloadButton.style.marginTop = '10px';
+    
+    downloadButton.onclick = () => {
+      // Create an anchor element for downloading
+      const a = document.createElement('a');
+      a.href = imageUrl;
+      a.download = 'stylized-design.jpg';
+      a.click();
+    };
+    
+    downloadContainer.appendChild(heading);
+    downloadContainer.appendChild(instructions);
+    downloadContainer.appendChild(downloadButton);
+    
+    // Find a good place to insert it in the DOM
+    const actionButtons = document.querySelector('.action-buttons');
+    if (actionButtons) {
+      actionButtons.parentNode.insertBefore(downloadContainer, actionButtons.nextSibling);
+    } else {
+      // Fallback - add to body
+      document.body.appendChild(downloadContainer);
     }
   };
 
