@@ -10,11 +10,11 @@ function ProductSelect() {
   const location = useLocation();
   const navigate = useNavigate();
   
-  // Define product types with correct Prodigi SKUs
+  // Define product types with direct Prodigi product URLs
   const productTypes = [
-    { id: 'canvas', name: 'Canvas Print', prodigiSku: 'canvas-prints/canvas-wrap/12x16-inch' },
-    { id: 'mug', name: 'Coffee Mug', prodigiSku: 'drinkware/mugs/11oz-white' },
-    { id: 'tshirt', name: 'T-Shirt', prodigiSku: 'clothing/t-shirts/mens/standard/medium-white' }
+    { id: 'canvas', name: 'Canvas Print', prodigiUrl: 'https://www.prodigi.com/products/canvas-posters/canvas-wrap/' },
+    { id: 'mug', name: 'Coffee Mug', prodigiUrl: 'https://www.prodigi.com/products/drinkware/mugs/white-mug/' },
+    { id: 'tshirt', name: 'T-Shirt', prodigiUrl: 'https://www.prodigi.com/products/apparel/t-shirts/mens-classic-crew/' }
   ];
   
   // For image uploads via Prodigi WebSDK
@@ -78,8 +78,8 @@ function ProductSelect() {
         console.log('Saved image to localStorage for demo');
       }
       
-      // Direct to Prodigi's product page
-      const prodigiUrl = `https://www.prodigi.com/products/${selectedProduct.prodigiSku}/`;
+      // Use the full direct URL to Prodigi's product page
+      const prodigiUrl = selectedProduct.prodigiUrl;
       console.log('Opening Prodigi product page:', prodigiUrl);
       
       // Show instructions before opening
