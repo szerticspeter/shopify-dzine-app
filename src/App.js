@@ -1,5 +1,7 @@
 import React, { useState, useEffect } from 'react';
+import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import './App.css';
+import ProductSelect from './ProductSelect';
 
 function App() {
   const [uploadedImage, setUploadedImage] = useState(null);
@@ -193,53 +195,60 @@ function App() {
   };
 
   return (
-    <div className="App">
-      <header className="App-header">
-        <h1>Dzine.ai Canvas Creator</h1>
-      </header>
-      
-      <main>
-        <div className="upload-section">
-          <input
-            type="file"
-            accept="image/*"
-            onChange={handleImageUpload}
-            className="file-input"
-          />
-        </div>
+    <Router>
+      <Routes>
+        <Route path="/" element={
+          <div className="App">
+            <header className="App-header">
+              <h1>Dzine.ai Personalized Products</h1>
+            </header>
+            
+            <main>
+              <div className="upload-section">
+                <input
+                  type="file"
+                  accept="image/*"
+                  onChange={handleImageUpload}
+                  className="file-input"
+                />
+              </div>
 
-        {uploadedImage && (
-          <div className="style-section">
-            <h2>Select Style</h2>
-            <div className="style-grid">
-              {styles.map((style) => (
-                <button
-                  key={style.style_code}
-                  onClick={() => handleStyleSelect(style.style_code)}
-                  className={`style-button ${selectedStyle === style.style_code ? 'selected' : ''}`}
-                >
-                  {style.name}
-                </button>
-              ))}
-            </div>
+              {uploadedImage && (
+                <div className="style-section">
+                  <h2>Select Style</h2>
+                  <div className="style-grid">
+                    {styles.map((style) => (
+                      <button
+                        key={style.style_code}
+                        onClick={() => handleStyleSelect(style.style_code)}
+                        className={`style-button ${selectedStyle === style.style_code ? 'selected' : ''}`}
+                      >
+                        {style.name}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {isProcessing && <div className="processing">Processing your image...</div>}
+
+              {result && (
+                <div className="result-section">
+                  <img src={result.url} alt="Stylized result" />
+                  <button 
+                    onClick={() => window.location.href = `/products?image=${encodeURIComponent(result.url)}`}
+                    className="create-product-button"
+                  >
+                    Continue to Products
+                  </button>
+                </div>
+              )}
+            </main>
           </div>
-        )}
-
-        {isProcessing && <div className="processing">Processing your image...</div>}
-
-        {result && (
-          <div className="result-section">
-            <img src={result.url} alt="Stylized result" />
-            <button 
-              onClick={() => window.location.href = `/products/create?image=${encodeURIComponent(result.url)}`}
-              className="create-product-button"
-            >
-              Create Canvas Product
-            </button>
-          </div>
-        )}
-      </main>
-    </div>
+        } />
+        <Route path="/products" element={<ProductSelect />} />
+      </Routes>
+    </Router>
   );
 }
 

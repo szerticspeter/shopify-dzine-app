@@ -1,25 +1,23 @@
-# Shopify Dzine.ai Canvas App with Gelato Integration
+# Dzine.ai Canvas App with Prodigi Integration
 
 This amazing and user-friendly application provides a seamless workflow for users to:
-1. Upload an image to your Shopify store
+1. Upload an image
 2. Apply artistic styles using Dzine.ai
-3. Send the stylized image to Gelato's Personalization Studio
-4. Order the image printed on canvas or other products
+3. Select from multiple product types (canvas, mug, t-shirt)
+4. Order the product with their stylized image through Prodigi
 
 ## Setup Instructions
 
-### 1. Configure Gelato Personalization Studio
+### 1. Configure Prodigi Web-to-Print SDK
 
-1. Log in to your Gelato account
-2. Create a customizable product in Gelato Personalization Studio
-3. Get the product URL and update the `GELATO_PRODUCT_URL` constant in `src/ProductCreate.js`
+1. Sign up for a Prodigi account at [https://www.prodigi.com/](https://www.prodigi.com/)
+2. Get your Prodigi WebSDK client key
+3. Update the `PRODIGI_CLIENT_KEY` constant in `src/ProductSelect.js`
 
 ### 2. Update Environment Variables
 
 Make sure your Netlify environment variables include:
 - `DZINE_API_KEY` - Your Dzine.ai API key
-- `SHOPIFY_ACCESS_TOKEN` - Your Shopify admin API access token
-- `GELATO_API_KEY` - Your Gelato API key
 
 ### 3. Deploy the Application
 
@@ -33,12 +31,13 @@ netlify deploy --prod
 
 1. Users upload their image in the app
 2. The image is processed by Dzine.ai to apply artistic styles
-3. The stylized image is passed to Gelato Personalization Studio via URL parameter
-4. Users can customize their product in Gelato's interface
-5. Checkout and payment are handled by Gelato
+3. Users select from available product types (canvas, mug, t-shirt)
+4. The stylized image is passed to Prodigi's Web SDK
+5. Users can customize their product in Prodigi's interface
+6. Checkout and payment are handled by Prodigi
 
 ## Additional Notes
 
 - For production use, uncomment the Dzine.ai API implementation in App.js
 - You can test the workflow with the mock implementation currently in place
-- Update the product URL in ProductCreate.js with your actual Gelato product URL
+- Update the Prodigi product SKUs in ProductSelect.js with your actual Prodigi SKUs

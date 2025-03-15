@@ -3,34 +3,10 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Dzine.ai Canvas Creator</title>
+    <title>Dzine.ai Personalized Products</title>
     
-    <!-- Add this script to handle image URL query parameters for Gelato integration -->
-    <script>
-      // Wait for DOM to be ready
-      document.addEventListener('DOMContentLoaded', function() {
-        // Check if there's an image parameter in the URL
-        const params = new URLSearchParams(window.location.search);
-        const imageUrl = params.get('image');
-        
-        // If this is a Gelato product page and we have an image parameter
-        if (window.location.href.includes('personalization.gelatostudio.com') && imageUrl) {
-          // Look for hidden field to auto-fill with our image URL
-          setTimeout(function() {
-            // Try to find the personalization field
-            const personalizationField = document.querySelector('input[name="properties[Personalized Image]"]');
-            if (personalizationField) {
-              personalizationField.value = imageUrl;
-              console.log('Auto-filled personalization field with image URL');
-              
-              // Trigger any necessary events to update the preview
-              const changeEvent = new Event('change', { bubbles: true });
-              personalizationField.dispatchEvent(changeEvent);
-            }
-          }, 1000); // Give the page a second to fully load
-        }
-      });
-    </script>
+    <!-- Load Prodigi WebSDK -->
+    <script src="https://sdk.prodigi.com/web-to-print/v5/prodigi-web-to-print-sdk.umd.min.js" async></script>
   </head>
   <body>
     <div id="root"></div>
