@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import './App.css';
 import ProductSelect from './ProductSelect';
@@ -9,6 +9,8 @@ function App() {
   const [isProcessing, setIsProcessing] = useState(false);
   const [result, setResult] = useState(null);
   const [styles, setStyles] = useState([]);
+  const [isDragging, setIsDragging] = useState(false);
+  const fileInputRef = useRef(null);
 
   // Initialize predefined styles instead of fetching from API
   useEffect(() => {
@@ -39,6 +41,37 @@ function App() {
 
   const handleImageUpload = (event) => {
     const file = event.target.files[0];
+    processFile(file);
+  };
+  
+  const handleDragOver = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(true);
+  };
+  
+  const handleDragLeave = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(false);
+  };
+  
+  const handleDrop = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(false);
+    
+    if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+      const file = e.dataTransfer.files[0];
+      processFile(file);
+    }
+  };
+  
+  const handleButtonClick = () => {
+    fileInputRef.current.click();
+  };
+  
+  const processFile = (file) => {
     if (file) {
       // Compress the image before setting it
       compressImage(file, 1200, 0.8).then(compressedFile => {
@@ -131,13 +164,38 @@ function App() {
             </header>
             
             <main>
-              <div className="upload-section">
+              <div 
+                className={`upload-section ${isDragging ? 'drag-over' : ''}`}
+                onDragOver={handleDragOver}
+                onDragLeave={handleDragLeave}
+                onDrop={handleDrop}
+              >
+                <svg className="upload-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M18 15v3H6v-3H4v3c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2v-3h-2zM7 9l1.41 1.41L11 7.83V16h2V7.83l2.59 2.58L17 9l-5-5-5 5z"/>
+                </svg>
+                
+                <p className="upload-text">
+                  {uploadedImage 
+                    ? `Selected file: ${uploadedImage.name}` 
+                    : 'Drag and drop an image here, or click to select a file'}
+                </p>
+                
+                <button 
+                  className="upload-button"
+                  onClick={handleButtonClick}
+                >
+                  Choose Image
+                </button>
+                
                 <input
+                  ref={fileInputRef}
                   type="file"
                   accept="image/*"
                   onChange={handleImageUpload}
                   className="file-input"
+                  id="file-input"
                 />
+                <label htmlFor="file-input" className="file-input-label"></label>
               </div>
 
               <div className="style-section">
