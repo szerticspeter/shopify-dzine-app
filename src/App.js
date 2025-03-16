@@ -160,68 +160,129 @@ function App() {
         <Route path="/" element={
           <div className="App">
             <header className="App-header">
-              <h1>Dzine.ai Personalized Products</h1>
+              <h1>Give a Special Gift</h1>
+              <p className="subtitle">Order a stylized image of your loved ones on premium products</p>
             </header>
             
             <main>
-              <div 
-                className={`upload-section ${isDragging ? 'drag-over' : ''}`}
-                onDragOver={handleDragOver}
-                onDragLeave={handleDragLeave}
-                onDrop={handleDrop}
-              >
-                <svg className="upload-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor">
-                  <path d="M18 15v3H6v-3H4v3c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2v-3h-2zM7 9l1.41 1.41L11 7.83V16h2V7.83l2.59 2.58L17 9l-5-5-5 5z"/>
-                </svg>
-                
-                <p className="upload-text">
-                  {uploadedImage 
-                    ? `Selected file: ${uploadedImage.name}` 
-                    : 'Drag and drop an image here, or click to select a file'}
-                </p>
-                
-                <button 
-                  className="upload-button"
-                  onClick={handleButtonClick}
-                >
-                  Choose Image
-                </button>
-                
-                <input
-                  ref={fileInputRef}
-                  type="file"
-                  accept="image/*"
-                  onChange={handleImageUpload}
-                  className="file-input"
-                  id="file-input"
-                />
-                <label htmlFor="file-input" className="file-input-label"></label>
-              </div>
-
-              <div className="style-section">
-                <h2>Select Style</h2>
-                <div className="style-grid">
-                  {styles.map((style) => (
-                    <button
-                      key={style.style_code}
-                      onClick={() => handleStyleSelect(style.style_code)}
-                      className={`style-button ${selectedStyle === style.style_code ? 'selected' : ''}`}
-                    >
-                      <div className="style-images">
-                        <img src={style.originalImage} alt="Original" />
-                        <img src={style.stylizedImage} alt={`${style.name} style`} />
-                      </div>
-                      <div className="style-name">{style.name}</div>
-                    </button>
-                  ))}
+              <section className="product-samples">
+                <h2>Perfect for Any Special Occasion</h2>
+                <div className="products-container">
+                  <div className="product-item">
+                    <img src="/images/mug-sample.png" alt="Stylized photo on a mug" />
+                    <span>Custom Mugs</span>
+                  </div>
+                  <div className="product-item">
+                    <img src="/images/cushion-sample.png" alt="Stylized photo on a cushion" />
+                    <span>Photo Cushions</span>
+                  </div>
+                  <div className="product-item">
+                    <img src="/images/canvas-sample.jpg" alt="Stylized photo on canvas" />
+                    <span>Canvas Prints</span>
+                  </div>
                 </div>
-              </div>}
+                <p className="sample-description">
+                  Turn cherished photos into unique artwork that will be treasured for years to come.
+                  Perfect for birthdays, anniversaries, or just to show how much you care.
+                </p>
+              </section>
+              <section className="create-gift-section">
+                <h2>Create Your Gift in 3 Easy Steps</h2>
+                <div className="steps-container">
+                  <div className="step-item">
+                    <div className="step-number">1</div>
+                    <p>Upload a photo of your loved ones</p>
+                  </div>
+                  <div className="step-item">
+                    <div className="step-number">2</div>
+                    <p>Select an artistic style to transform it</p>
+                  </div>
+                  <div className="step-item">
+                    <div className="step-number">3</div>
+                    <p>Choose your product and place your order</p>
+                  </div>
+                </div>
+                
+                <div 
+                  className={`upload-section ${isDragging ? 'drag-over' : ''}`}
+                  onDragOver={handleDragOver}
+                  onDragLeave={handleDragLeave}
+                  onDrop={handleDrop}
+                >
+                  <svg className="upload-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor">
+                    <path d="M18 15v3H6v-3H4v3c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2v-3h-2zM7 9l1.41 1.41L11 7.83V16h2V7.83l2.59 2.58L17 9l-5-5-5 5z"/>
+                  </svg>
+                  
+                  <h3 className="upload-heading">Start with Your Photo</h3>
+                  
+                  <p className="upload-text">
+                    {uploadedImage 
+                      ? `Selected file: ${uploadedImage.name}` 
+                      : 'Upload a clear photo of your loved ones - family portraits work best!'}
+                  </p>
+                  
+                  <button 
+                    className="upload-button"
+                    onClick={handleButtonClick}
+                  >
+                    {uploadedImage ? 'Change Photo' : 'Upload Photo'}
+                  </button>
+                  
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept="image/*"
+                    onChange={handleImageUpload}
+                    className="file-input"
+                    id="file-input"
+                  />
+                  <label htmlFor="file-input" className="file-input-label"></label>
+                </div>
+              </section>
+
+              {uploadedImage && (
+                <section className="style-section">
+                  <h2>Choose an Artistic Style</h2>
+                  <p className="style-description">
+                    Select one of our artistic styles to transform your photo into a unique piece of art.
+                  </p>
+                  <div className="style-grid">
+                    {styles.map((style) => (
+                      <button
+                        key={style.style_code}
+                        onClick={() => handleStyleSelect(style.style_code)}
+                        className={`style-button ${selectedStyle === style.style_code ? 'selected' : ''}`}
+                      >
+                        <div className="style-images">
+                          <img src={style.originalImage} alt="Original" />
+                          <img src={style.stylizedImage} alt={`${style.name} style`} />
+                        </div>
+                        <div className="style-name">{style.name}</div>
+                        {selectedStyle === style.style_code && (
+                          <div className="selected-badge">
+                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" width="24" height="24">
+                              <path d="M0 0h24v24H0z" fill="none"/>
+                              <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/>
+                            </svg>
+                          </div>
+                        )}
+                      </button>
+                    ))}
+                  </div>
+                </section>
+              )}
 
               {isProcessing && <div className="processing">Processing your image...</div>}
 
               {result && (
-                <div className="result-section">
-                  <img src={result.url} alt="Stylized result" />
+                <section className="result-section">
+                  <h2>Your Stylized Image is Ready!</h2>
+                  <p className="result-description">
+                    Your photo has been transformed! Now choose your perfect product.
+                  </p>
+                  <div className="result-image-container">
+                    <img src={result.url} alt="Your stylized image result" />
+                  </div>
                   <button 
                     onClick={() => {
                       // Store image in sessionStorage instead of URL parameter
@@ -230,9 +291,16 @@ function App() {
                     }}
                     className="create-product-button"
                   >
-                    Continue to Products
+                    Continue to Select Products
                   </button>
-                </div>
+                  <p className="guarantee-text">
+                    <svg className="guarantee-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" width="18" height="18">
+                      <path d="M0 0h24v24H0z" fill="none"/>
+                      <path d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4zm-2 16l-4-4 1.41-1.41L10 14.17l6.59-6.59L18 9l-8 8z"/>
+                    </svg>
+                    100% satisfaction guarantee • Premium quality products • Fast shipping
+                  </p>
+                </section>
               )}
             </main>
           </div>
