@@ -64,9 +64,68 @@ function App() {
   const handleImageUpload = (event) => {
     const file = event.target.files[0];
     if (file) {
-      setUploadedImage(file);
-      setResult(null);
+      // Compress the image before setting it
+      compressImage(file, 1200, 0.8).then(compressedFile => {
+        console.log('Original size:', file.size / 1024 / 1024, 'MB');
+        console.log('Compressed size:', compressedFile.size / 1024 / 1024, 'MB');
+        setUploadedImage(compressedFile);
+        setResult(null);
+      }).catch(error => {
+        console.error('Image compression failed:', error);
+        // Fallback to original file if compression fails
+        setUploadedImage(file);
+        setResult(null);
+      });
     }
+  };
+  
+  // Function to compress/resize image before upload
+  const compressImage = (file, maxWidth, quality) => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.readAsDataURL(file);
+      reader.onload = event => {
+        const img = new Image();
+        img.src = event.target.result;
+        img.onload = () => {
+          const canvas = document.createElement('canvas');
+          let width = img.width;
+          let height = img.height;
+          
+          // Calculate new dimensions while maintaining aspect ratio
+          if (width > maxWidth) {
+            height = Math.round(height * maxWidth / width);
+            width = maxWidth;
+          }
+          
+          canvas.width = width;
+          canvas.height = height;
+          
+          const ctx = canvas.getContext('2d');
+          ctx.drawImage(img, 0, 0, width, height);
+          
+          // Convert to blob with quality setting (0.0 to 1.0)
+          canvas.toBlob(blob => {
+            if (!blob) {
+              reject(new Error('Canvas to Blob conversion failed'));
+              return;
+            }
+            // Create a new File object from the blob
+            const compressedFile = new File([blob], file.name, {
+              type: 'image/jpeg',
+              lastModified: Date.now()
+            });
+            resolve(compressedFile);
+          }, 'image/jpeg', quality);
+        };
+        img.onerror = error => {
+          reject(error);
+        };
+      };
+      reader.onerror = error => {
+        reject(error);
+      };
+    });
   };
 
   const handleStyleSelect = async (styleCode) => {
