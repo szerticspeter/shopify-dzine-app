@@ -105,8 +105,8 @@ function App() {
           style_code: styleCode,
           generate_slots: [1,0,0,0],
           quality_mode: 1,
-          style_intensity: 1,
-          structure_match: 0.8,
+          style_intensity: 0.7,
+          structure_match: 0.7,
           color_match: 0,
           face_match: 1
         };
