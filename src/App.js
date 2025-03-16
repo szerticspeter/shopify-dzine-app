@@ -28,22 +28,29 @@ function App() {
 
         const data = await response.json();
         if (data.code === 200 && data.data && data.data.list) {
-          setStyles(data.data.list);
-          console.log('Available styles:', data.data.list);
+          // Filter to show only specific styles
+          const allowedStyles = ['flamenco dance', 'gta comic', 'toon face', 'magic portrait', 'delicate aquarell', 'skyborne realm', 'vibrant impasto'];
+          const filteredStyles = data.data.list.filter(style => 
+            allowedStyles.includes(style.name.toLowerCase())
+          );
+          
+          setStyles(filteredStyles.length > 0 ? filteredStyles : data.data.list);
+          console.log('Available styles after filtering:', filteredStyles);
         } else {
           throw new Error(data.msg || 'Failed to load styles');
         }
       } catch (error) {
         console.error('Error fetching styles:', error);
         
-        // Fallback to mock styles if API call fails
+        // Fallback to mock styles with allowed styles if API call fails
         const mockStyles = [
-          { style_code: 'mock-style-1', name: 'Watercolor' },
-          { style_code: 'mock-style-2', name: 'Oil Painting' },
-          { style_code: 'mock-style-3', name: 'Sketch' },
-          { style_code: 'mock-style-4', name: 'Abstract' },
-          { style_code: 'mock-style-5', name: 'Digital Art' },
-          { style_code: 'mock-style-6', name: 'Pencil Drawing' }
+          { style_code: 'mock-style-1', name: 'Flamenco Dance' },
+          { style_code: 'mock-style-2', name: 'GTA Comic' },
+          { style_code: 'mock-style-3', name: 'Toon Face' },
+          { style_code: 'mock-style-4', name: 'Magic Portrait' },
+          { style_code: 'mock-style-5', name: 'Delicate Aquarell' },
+          { style_code: 'mock-style-6', name: 'Skyborne Realm' },
+          { style_code: 'mock-style-7', name: 'Vibrant Impasto' }
         ];
         
         setStyles(mockStyles);
@@ -101,7 +108,7 @@ function App() {
           style_intensity: 1,
           structure_match: 0.8,
           color_match: 0,
-          face_match: 0
+          face_match: 1
         };
         
         console.log('Creating task with:', taskRequestBody);
