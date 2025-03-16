@@ -76,6 +76,12 @@ function App() {
       setIsProcessing(true);
       
       try {
+        // Check if API key is available
+        if (!process.env.REACT_APP_DZINE_API_KEY) {
+          console.error("API key is missing. Make sure REACT_APP_DZINE_API_KEY is set in your environment variables.");
+          throw new Error("API key is missing. Please check your environment configuration.");
+        }
+        
         // First, upload the image
         console.log('Starting image upload...');
         const formData = new FormData();
@@ -89,8 +95,23 @@ function App() {
           body: formData
         });
 
-        const uploadData = await uploadResponse.json();
-        console.log('Upload response:', uploadData);
+        if (!uploadResponse.ok) {
+          console.error('Upload response not OK:', uploadResponse.status, uploadResponse.statusText);
+          const responseText = await uploadResponse.text();
+          console.error('Response text:', responseText);
+          throw new Error(`HTTP error during upload: ${uploadResponse.status} ${uploadResponse.statusText}`);
+        }
+
+        let uploadData;
+        try {
+          const responseText = await uploadResponse.clone().text();
+          console.log('Raw upload response:', responseText);
+          uploadData = await uploadResponse.json();
+          console.log('Upload response:', uploadData);
+        } catch (error) {
+          console.error('Error parsing upload response:', error);
+          throw new Error('Failed to parse upload response as JSON');
+        }
 
         if (uploadData.code !== 200) {
           throw new Error(uploadData.msg || 'Failed to upload image');
@@ -122,8 +143,23 @@ function App() {
           body: JSON.stringify(taskRequestBody)
         });
 
-        const taskData = await taskResponse.json();
-        console.log('Task creation response:', taskData);
+        if (!taskResponse.ok) {
+          console.error('Task response not OK:', taskResponse.status, taskResponse.statusText);
+          const responseText = await taskResponse.text();
+          console.error('Response text:', responseText);
+          throw new Error(`HTTP error during task creation: ${taskResponse.status} ${taskResponse.statusText}`);
+        }
+
+        let taskData;
+        try {
+          const responseText = await taskResponse.clone().text();
+          console.log('Raw task response:', responseText);
+          taskData = await taskResponse.json();
+          console.log('Task creation response:', taskData);
+        } catch (error) {
+          console.error('Error parsing task response:', error);
+          throw new Error('Failed to parse task creation response as JSON');
+        }
 
         if (taskData.code !== 200) {
           throw new Error(taskData.msg || 'Failed to create task');
@@ -145,22 +181,40 @@ function App() {
             }
           });
           
-          const progressData = await progressResponse.json();
-          console.log('Progress check attempt', attempts, 'Status:', progressData.data.status);
-          console.log('Full progress data:', progressData.data);
+          if (!progressResponse.ok) {
+            console.error('Progress response not OK:', progressResponse.status, progressResponse.statusText);
+            const responseText = await progressResponse.text();
+            console.error('Response text:', responseText);
+            throw new Error(`HTTP error during progress check: ${progressResponse.status} ${progressResponse.statusText}`);
+          }
           
-          // Check for both 'succeeded' and 'succeed'
-          if ((progressData.data.status === 'succeeded' || progressData.data.status === 'succeed') && 
+          let progressData;
+          try {
+            const responseText = await progressResponse.clone().text();
+            console.log('Raw progress response:', responseText);
+            progressData = await progressResponse.json();
+            console.log('Progress check attempt', attempts, 'Status:', progressData.data?.status || 'unknown');
+            console.log('Full progress data:', progressData.data || progressData);
+          } catch (error) {
+            console.error('Error parsing progress response:', error);
+            throw new Error('Failed to parse progress check response as JSON');
+          }
+          
+          // Safely check for success state with optional chaining
+          if (progressData?.data?.status && 
+              (progressData.data.status === 'succeeded' || progressData.data.status === 'succeed') && 
               progressData.data.generate_result_slots && 
               progressData.data.generate_result_slots[0]) {
             resultUrl = progressData.data.generate_result_slots[0];
             console.log('Success! Result URL:', resultUrl);
             break;
-          } else if (progressData.data.status === 'failed') {
+          } else if (progressData?.data?.status === 'failed') {
             throw new Error(`Task processing failed: ${progressData.data.error_reason || 'Unknown error'}`);
           } else if (attempts >= maxAttempts) {
             throw new Error('Task processing timed out after 120 seconds');
           }
+          
+          // If we get here, the task is still processing - wait for the next poll
         }
 
         if (resultUrl) {
@@ -169,28 +223,24 @@ function App() {
           throw new Error('No result URL found in successful response');
         }
         
-        // Fallback implementation in case the API call fails
-        /*
-        // Convert the uploaded image to a Base64 data URL
-        const reader = new FileReader();
-        reader.readAsDataURL(uploadedImage);
-        
-        // When the reader is done, set the result
-        reader.onloadend = async () => {
-          const base64Image = reader.result;
-          console.log('Mock processing - created Base64 image');
-          
-          // Simulate a short processing delay
-          await new Promise(resolve => setTimeout(resolve, 1500));
-          
-          // Set the result to the Base64 data URL
-          setResult({ url: base64Image });
-        };
-        */
+        // No fallback needed - we'll use the catch handler below
         
       } catch (error) {
         console.error('Detailed error:', error);
         alert(`Error processing image: ${error.message}`);
+        
+        // Fallback to using the original image if API processing fails
+        console.log('Using fallback mechanism to display original image');
+        try {
+          const reader = new FileReader();
+          reader.onloadend = () => {
+            setResult({ url: reader.result });
+            console.log('Fallback: Set result to original image');
+          };
+          reader.readAsDataURL(uploadedImage);
+        } catch (fallbackError) {
+          console.error('Fallback also failed:', fallbackError);
+        }
       } finally {
         setIsProcessing(false);
       }
