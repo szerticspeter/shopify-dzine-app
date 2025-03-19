@@ -11,6 +11,12 @@ function App() {
   const [styles, setStyles] = useState([]);
   const [isDragging, setIsDragging] = useState(false);
   const fileInputRef = useRef(null);
+  
+  // Debug environment variables on startup
+  console.log('App initialized, ENV vars status:');
+  console.log('- NODE_ENV:', process.env.NODE_ENV);
+  console.log('- DZINE API Key exists:', !!process.env.REACT_APP_DZINE_API_KEY);
+  console.log('- DZINE API Key is default:', process.env.REACT_APP_DZINE_API_KEY === 'your_api_key_here');
 
   // Always use our predefined styles for the UI
   // but we'll map them to real API style codes when making the API request
@@ -148,8 +154,19 @@ function App() {
       setIsProcessing(true);
       
       try {
+        // Add debug logging
+        console.log('Starting API call to Dzine.ai');
+        console.log('API Key available:', !!process.env.REACT_APP_DZINE_API_KEY);
+        
+        // Check if we have an API key, otherwise directly fall back to mock
+        if (!process.env.REACT_APP_DZINE_API_KEY || process.env.REACT_APP_DZINE_API_KEY === 'your_api_key_here') {
+          console.log('No valid API key found, falling back to mock response');
+          throw new Error('No valid API key configured');
+        }
+        
         // Convert image to base64
         const base64Image = await fileToBase64(uploadedImage);
+        console.log('Image converted to base64');
         
         // Map our style codes to actual dzine.ai style codes
         // Replace these with actual API style codes from dzine.ai
@@ -161,8 +178,10 @@ function App() {
         
         // Get the actual API style code
         const apiStyleCode = styleCodeMapping[styleCode] || styleCode;
+        console.log('Using API style code:', apiStyleCode);
         
         // Create img2img task
+        console.log('Sending request to Dzine.ai API...');
         const response = await fetch('https://papi.dzine.ai/openapi/v1/create_task_img2img', {
           method: 'POST',
           headers: {
@@ -185,10 +204,12 @@ function App() {
         });
         
         if (!response.ok) {
-          throw new Error('Failed to create styling task');
+          console.error('API response not OK:', response.status, response.statusText);
+          throw new Error(`Failed to create styling task: ${response.status} ${response.statusText}`);
         }
         
         const data = await response.json();
+        console.log('API response:', data);
         
         if (data.code === 200 && data.data && data.data.task_id) {
           // Poll for task completion
@@ -221,17 +242,20 @@ function App() {
   // Helper function to poll for task progress
   const pollTaskProgress = async (taskId) => {
     try {
+      console.log('Starting to poll for task progress, ID:', taskId);
       let isComplete = false;
       let attempts = 0;
       const maxAttempts = 30; // Maximum polling attempts
       
       while (!isComplete && attempts < maxAttempts) {
         attempts++;
+        console.log(`Polling attempt ${attempts}/${maxAttempts}...`);
         
         // Wait 2 seconds between polls
         await new Promise(resolve => setTimeout(resolve, 2000));
         
         // Check task progress
+        console.log('Checking task progress...');
         const response = await fetch(`https://papi.dzine.ai/openapi/v1/get_task_progress/${taskId}`, {
           method: 'GET',
           headers: {
@@ -241,30 +265,42 @@ function App() {
         });
         
         if (!response.ok) {
-          throw new Error('Failed to check task progress');
+          console.error('Progress check response not OK:', response.status, response.statusText);
+          throw new Error(`Failed to check task progress: ${response.status} ${response.statusText}`);
         }
         
         const data = await response.json();
+        console.log('Progress response:', data);
         
         if (data.code === 200 && data.data) {
+          console.log('Task status:', data.data.status);
+          
           if (data.data.status === 'success' || data.data.status === 'succeeded') {
             isComplete = true;
+            console.log('Task completed successfully!');
             
             // Get the first non-empty image URL from generate_result_slots
+            console.log('Result slots:', data.data.generate_result_slots);
             const resultUrl = data.data.generate_result_slots.find(url => url && url.trim() !== '');
             
             if (resultUrl) {
+              console.log('Found result URL:', resultUrl);
               setResult({ url: resultUrl });
             } else {
+              console.error('No result URL found in response');
               throw new Error('No result image found');
             }
           } else if (data.data.status === 'failed') {
+            console.error('Task failed:', data.data.error_reason || 'Unknown error');
             throw new Error(`Task failed: ${data.data.error_reason || 'Unknown error'}`);
+          } else {
+            console.log('Task still processing...');
           }
         }
       }
       
       if (!isComplete) {
+        console.error('Task processing timed out after', maxAttempts, 'attempts');
         throw new Error('Task processing timed out');
       }
     } catch (error) {
