@@ -17,6 +17,11 @@ function App() {
   console.log('- NODE_ENV:', process.env.NODE_ENV);
   console.log('- DZINE API Key exists:', !!process.env.REACT_APP_DZINE_API_KEY);
   console.log('- DZINE API Key is default:', process.env.REACT_APP_DZINE_API_KEY === 'your_api_key_here');
+  // Log all environment variables with REACT_APP prefix for debugging
+  console.log('All REACT_APP environment variables:');
+  Object.keys(process.env).filter(key => key.startsWith('REACT_APP')).forEach(key => {
+    console.log(`- ${key}: ${key.includes('KEY') ? '[HIDDEN]' : process.env[key]}`);
+  });
 
   // Always use our predefined styles for the UI
   // but we'll map them to real API style codes when making the API request
@@ -158,11 +163,16 @@ function App() {
         console.log('Starting API call to Dzine.ai');
         console.log('API Key available:', !!process.env.REACT_APP_DZINE_API_KEY);
         
+        // Get API key from environment variables
+        const apiKey = process.env.REACT_APP_DZINE_API_KEY;
+        
         // Check if we have an API key, otherwise directly fall back to mock
-        if (!process.env.REACT_APP_DZINE_API_KEY || process.env.REACT_APP_DZINE_API_KEY === 'your_api_key_here') {
+        if (!apiKey || apiKey === 'your_api_key_here') {
           console.log('No valid API key found, falling back to mock response');
           throw new Error('No valid API key configured');
         }
+        
+        console.log('API Key found, proceeding with API call');
         
         // Convert image to base64
         const base64Image = await fileToBase64(uploadedImage);
@@ -186,7 +196,7 @@ function App() {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
-            'Authorization': process.env.REACT_APP_DZINE_API_KEY
+            'Authorization': apiKey
           },
           body: JSON.stringify({
             prompt: "Transform this image with the selected style",
@@ -247,6 +257,15 @@ function App() {
       let attempts = 0;
       const maxAttempts = 30; // Maximum polling attempts
       
+      // Get API key from environment variables
+      const apiKey = process.env.REACT_APP_DZINE_API_KEY;
+      
+      // Check if we have an API key
+      if (!apiKey || apiKey === 'your_api_key_here') {
+        console.error('No valid API key for polling task progress');
+        throw new Error('No valid API key configured');
+      }
+      
       while (!isComplete && attempts < maxAttempts) {
         attempts++;
         console.log(`Polling attempt ${attempts}/${maxAttempts}...`);
@@ -260,7 +279,7 @@ function App() {
           method: 'GET',
           headers: {
             'Content-Type': 'application/json',
-            'Authorization': process.env.REACT_APP_DZINE_API_KEY
+            'Authorization': apiKey
           }
         });
         
