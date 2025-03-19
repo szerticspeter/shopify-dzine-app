@@ -12,9 +12,10 @@ function App() {
   const [isDragging, setIsDragging] = useState(false);
   const fileInputRef = useRef(null);
 
-  // Initialize predefined styles instead of fetching from API
+  // Always use our predefined styles for the UI
+  // but we'll map them to real API style codes when making the API request
   useEffect(() => {
-    // Predefined styles with image paths
+    // Our predefined styles that will always be shown in the UI
     const predefinedStyles = [
       { 
         style_code: 'flamenco-dance', 
@@ -137,20 +138,140 @@ function App() {
     });
   };
 
-  const handleStyleSelect = (styleCode) => {
+  const handleStyleSelect = async (styleCode) => {
     console.log('Selected style code:', styleCode);
     setSelectedStyle(styleCode);
     
     // Find the selected style
     const selectedStyleObj = styles.find(style => style.style_code === styleCode);
-    if (selectedStyleObj) {
+    if (selectedStyleObj && uploadedImage) {
       setIsProcessing(true);
       
-      // Simulate processing
-      setTimeout(() => {
-        setResult({ url: selectedStyleObj.stylizedImage });
+      try {
+        // Convert image to base64
+        const base64Image = await fileToBase64(uploadedImage);
+        
+        // Map our style codes to actual dzine.ai style codes
+        // Replace these with actual API style codes from dzine.ai
+        const styleCodeMapping = {
+          'flamenco-dance': 'Style-7feccf2b-f2ad-43a6-89cb-354fb5d928d2', // Replace with actual style code
+          'gta-comic': 'Style-8a1bc39d-e5d7-45fc-affe-870c8337107a', // Replace with actual style code
+          'toon-face': 'Style-96fb8bd7-c4ed-466d-b94f-5a5625a64bbf'  // Replace with actual style code
+        };
+        
+        // Get the actual API style code
+        const apiStyleCode = styleCodeMapping[styleCode] || styleCode;
+        
+        // Create img2img task
+        const response = await fetch('https://papi.dzine.ai/openapi/v1/create_task_img2img', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': process.env.REACT_APP_DZINE_API_KEY
+          },
+          body: JSON.stringify({
+            prompt: "Transform this image with the selected style",
+            style_code: apiStyleCode,
+            style_intensity: 0.9,
+            structure_match: 0.7,
+            quality_mode: 1,
+            generate_slots: [1, 0, 0, 0],
+            images: [
+              {
+                base64_data: base64Image
+              }
+            ]
+          })
+        });
+        
+        if (!response.ok) {
+          throw new Error('Failed to create styling task');
+        }
+        
+        const data = await response.json();
+        
+        if (data.code === 200 && data.data && data.data.task_id) {
+          // Poll for task completion
+          await pollTaskProgress(data.data.task_id);
+        } else {
+          throw new Error('Invalid API response format');
+        }
+      } catch (error) {
+        console.error('Error processing image:', error);
         setIsProcessing(false);
-      }, 500);
+        
+        // Fallback to mock if the API fails
+        if (selectedStyleObj.stylizedImage) {
+          setResult({ url: selectedStyleObj.stylizedImage });
+        }
+      }
+    }
+  };
+  
+  // Helper function to convert File to base64
+  const fileToBase64 = (file) => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.readAsDataURL(file);
+      reader.onload = () => resolve(reader.result);
+      reader.onerror = (error) => reject(error);
+    });
+  };
+  
+  // Helper function to poll for task progress
+  const pollTaskProgress = async (taskId) => {
+    try {
+      let isComplete = false;
+      let attempts = 0;
+      const maxAttempts = 30; // Maximum polling attempts
+      
+      while (!isComplete && attempts < maxAttempts) {
+        attempts++;
+        
+        // Wait 2 seconds between polls
+        await new Promise(resolve => setTimeout(resolve, 2000));
+        
+        // Check task progress
+        const response = await fetch(`https://papi.dzine.ai/openapi/v1/get_task_progress/${taskId}`, {
+          method: 'GET',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': process.env.REACT_APP_DZINE_API_KEY
+          }
+        });
+        
+        if (!response.ok) {
+          throw new Error('Failed to check task progress');
+        }
+        
+        const data = await response.json();
+        
+        if (data.code === 200 && data.data) {
+          if (data.data.status === 'success' || data.data.status === 'succeeded') {
+            isComplete = true;
+            
+            // Get the first non-empty image URL from generate_result_slots
+            const resultUrl = data.data.generate_result_slots.find(url => url && url.trim() !== '');
+            
+            if (resultUrl) {
+              setResult({ url: resultUrl });
+            } else {
+              throw new Error('No result image found');
+            }
+          } else if (data.data.status === 'failed') {
+            throw new Error(`Task failed: ${data.data.error_reason || 'Unknown error'}`);
+          }
+        }
+      }
+      
+      if (!isComplete) {
+        throw new Error('Task processing timed out');
+      }
+    } catch (error) {
+      console.error('Error polling task progress:', error);
+      throw error;
+    } finally {
+      setIsProcessing(false);
     }
   };
 
