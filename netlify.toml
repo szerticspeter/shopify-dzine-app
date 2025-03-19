@@ -9,6 +9,11 @@
 
 [build.environment]
   NODE_VERSION = "18"
+  SECRETS_SCAN_ENABLED = "true"
+  # Disable scanning on specific paths if needed
+  # SECRETS_SCAN_OMIT_PATHS = "/path/to/ignore"
+  # Specify keys to ignore during scanning
+  SECRETS_SCAN_OMIT_KEYS = "REACT_APP_DZINE_API_KEY"
 
 [[plugins]]
   package = "@netlify/plugin-functions-install-core"
