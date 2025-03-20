@@ -166,12 +166,11 @@ function App() {
         // Convert image to base64
         const base64Image = await fileToBase64(uploadedImage);
         
-        // Map our style codes to actual dzine.ai style codes
-        // Replace these with actual API style codes from dzine.ai
+        // Map our UI style codes to actual dzine.ai API style codes
         const styleCodeMapping = {
-          'flamenco-dance': 'Style-7feccf2b-f2ad-43a6-89cb-354fb5d928d2', // Replace with actual style code
-          'gta-comic': 'Style-8a1bc39d-e5d7-45fc-affe-870c8337107a', // Replace with actual style code
-          'toon-face': 'Style-96fb8bd7-c4ed-466d-b94f-5a5625a64bbf'  // Replace with actual style code
+          'flamenco-dance': 'Style-5e28d7f9-8754-4aae-ac5f-8297dd6f39d5', // Flamenco Dance style
+          'gta-comic': 'Style-5b1b0c35-7abc-4f14-8b1d-dc2748f34915', // GTA Comic style
+          'toon-face': 'Style-96fb8bd7-c4ed-466d-b94f-5a5625a64bbf'  // Toon Face style
         };
         
         // Get the actual API style code
