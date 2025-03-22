@@ -38,9 +38,12 @@ const ImageEditor = () => {
     // Load the product image and printable area corners - try different path formats
     // to handle various development and production setups
     const productImagePaths = [
-      './images/products/canvas16x20.png',
       '/images/products/canvas16x20.png',
-      process.env.PUBLIC_URL + '/images/products/canvas16x20.png'
+      './images/products/canvas16x20.png',
+      '../images/products/canvas16x20.png',
+      'images/products/canvas16x20.png',
+      process.env.PUBLIC_URL + '/images/products/canvas16x20.png',
+      window.location.origin + '/images/products/canvas16x20.png'
     ];
     const cornersJsonUrl = './images/products/canvas16x20.json';
     
@@ -65,23 +68,49 @@ const ImageEditor = () => {
   const tryLoadProductImage = (paths, index, corners) => {
     if (index >= paths.length) {
       console.error("Failed to load product image from any path");
-      // Try to load just the user image with a default positioning
-      loadUserImage(null, corners);
+      
+      // Try one more approach
+      const lastAttemptImg = new Image();
+      lastAttemptImg.crossOrigin = "Anonymous";
+      lastAttemptImg.onload = () => {
+        console.log("✓ Product image loaded with final attempt!");
+        setProductImage(lastAttemptImg);
+        productImageRef.current = lastAttemptImg;
+        loadUserImage(lastAttemptImg, corners);
+      };
+      lastAttemptImg.onerror = (e) => {
+        console.error("✗ All product image loading approaches failed:", e);
+        // Try to load just the user image with a default positioning
+        loadUserImage(null, corners);
+      };
+      
+      // Try with direct URL that ignores the router/base path
+      const absoluteUrl = 'http://localhost:3000/images/products/canvas16x20.png';
+      console.log("💡 Last attempt with direct URL:", absoluteUrl);
+      lastAttemptImg.src = absoluteUrl;
       return;
     }
     
     const path = paths[index];
-    console.log(`Trying to load product image from path: ${path}`);
+    console.log(`💻 [${index+1}/${paths.length}] Trying to load product image from path: ${path}`);
     
     const productImg = new Image();
+    productImg.crossOrigin = "Anonymous"; // Try with CORS enabled
     productImg.onload = () => {
-      console.log("Product image loaded successfully from:", path);
+      console.log("✓ Product image loaded successfully from:", path);
+      console.log("✓ Image dimensions:", productImg.width, "x", productImg.height);
+      if (productImg.width === 0 || productImg.height === 0) {
+        console.warn("⚠️ Image loaded but has zero dimensions, trying next path...");
+        tryLoadProductImage(paths, index + 1, corners);
+        return;
+      }
       setProductImage(productImg);
       productImageRef.current = productImg;
       loadUserImage(productImg, corners);
     };
-    productImg.onerror = () => {
-      console.warn(`Failed to load product image from: ${path}, trying next path...`);
+    productImg.onerror = (e) => {
+      console.warn(`✗ Failed to load product image from: ${path}`, e);
+      console.log("⤷ Trying next path...");
       tryLoadProductImage(paths, index + 1, corners);
     };
     productImg.src = path;
@@ -175,7 +204,17 @@ const ImageEditor = () => {
     // Draw the product image as background if available
     if (productImageRef.current) {
       console.log("Drawing product image");
+      console.log("Product image dimensions:", productImageRef.current.width, "x", productImageRef.current.height);
       ctx.drawImage(productImageRef.current, 0, 0, canvas.width, canvas.height);
+    } else {
+      console.error("Product image not loaded - trying alternative approach");
+      // Try direct loading as fallback
+      const fallbackImg = new Image();
+      fallbackImg.onload = () => {
+        console.log("Fallback image loaded directly in drawCanvas");
+        ctx.drawImage(fallbackImg, 0, 0, canvas.width, canvas.height);
+      };
+      fallbackImg.src = '/images/products/canvas16x20.png';
     }
     
     // Draw the user image if available
@@ -195,22 +234,36 @@ const ImageEditor = () => {
       const scaleFactorX = canvas.width / productImageRef.current.width;
       const scaleFactorY = canvas.height / productImageRef.current.height;
       
-      // Simple overlay implementation
+      // We will create a mask that only applies the overlay to the non-printable area
       ctx.save();
-      
-      // First draw a semi-transparent overlay over the entire canvas
-      ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
-      ctx.fillRect(0, 0, canvas.width, canvas.height);
-      
-      // Then cut out the printable area
-      ctx.globalCompositeOperation = 'destination-out';
+
+      // Create a path for the printable area
       ctx.beginPath();
       ctx.moveTo(printableCorners[0].x * scaleFactorX, printableCorners[0].y * scaleFactorY);
       for (let i = 1; i < printableCorners.length; i++) {
         ctx.lineTo(printableCorners[i].x * scaleFactorX, printableCorners[i].y * scaleFactorY);
       }
       ctx.closePath();
-      ctx.fill();
+      
+      // Create a clipping region INSIDE the printable area
+      ctx.clip();
+      
+      // We're now inside the printable area
+      // Save this state so we can restore it later
+      ctx.save();
+      
+      // Now, invert the clipping region
+      ctx.beginPath();
+      ctx.rect(0, 0, canvas.width, canvas.height);
+      ctx.clip("evenodd"); // This creates an inverted clip region
+
+      // Now we're in the NON-printable area
+      // Draw the semi-transparent overlay only over the non-printable area
+      ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      
+      // Restore to the printable area clip state
+      ctx.restore();
       
       // Reset composite operation
       ctx.globalCompositeOperation = 'source-over';
