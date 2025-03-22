@@ -10,8 +10,7 @@ const ImageEditor = () => {
   const [productImage, setProductImage] = useState(null);
   const [printableCorners, setPrintableCorners] = useState([]);
   const [isDragging, setIsDragging] = useState(false);
-  const [isResizing, setIsResizing] = useState(false);
-  const [activeCorner, setActiveCorner] = useState(null);
+  // Removed resizing state
   const canvasRef = useRef(null);
   const imageRef = useRef(null);
   const productImageRef = useRef(null);
@@ -23,10 +22,11 @@ const ImageEditor = () => {
 
   // Image position and scale
   const [imagePosition, setImagePosition] = useState({ x: 0, y: 0 });
-  const [imageScale, setImageScale] = useState(1);
   const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
+  // Scale will be set once when the image loads
+  const [imageScale, setImageScale] = useState(1);
   
-  // Constants for the resize handles
+  // Constants for the resize handles (visual only now)
   const HANDLE_SIZE = 20; // Size of the corner resize handles
   const CORNERS = ['nw', 'ne', 'se', 'sw']; // Corner positions
 
@@ -160,11 +160,21 @@ const ImageEditor = () => {
       const centerX = (corners[0].x + corners[1].x) / 2 * scaleFactorX;
       const centerY = (corners[0].y + corners[3].y) / 2 * scaleFactorY;
       
-      // Calculate scale to fit the user image inside the printable area
+      // Calculate scale to better fill the printable area
       const scaleX = canvasPrintableWidth / userImg.width;
       const scaleY = canvasPrintableHeight / userImg.height;
-      const scale = Math.min(scaleX, scaleY) * 0.9; // 90% of the printable area
+      const aspectRatio = userImg.width / userImg.height;
+      const printableAreaRatio = canvasPrintableWidth / canvasPrintableHeight;
       
+      // Use a scaling approach that fills more of the canvas while maintaining aspect ratio
+      let scale;
+      if (aspectRatio > printableAreaRatio) {
+        // For wider images, fill the height
+        scale = scaleY;
+      } else {
+        // For taller images, fill the width
+        scale = scaleX;
+      }
       setImageScale(scale);
       
       // Center the image in the printable area
@@ -179,10 +189,21 @@ const ImageEditor = () => {
         y: (CANVAS_HEIGHT - userImg.height) / 2
       });
       
-      // Set initial scale to fit the canvas
+      // Set initial scale to better fill the canvas
       const scaleX = CANVAS_WIDTH / userImg.width;
       const scaleY = CANVAS_HEIGHT / userImg.height;
-      const scale = Math.min(scaleX, scaleY) * 0.8;
+      const aspectRatio = userImg.width / userImg.height;
+      const canvasRatio = CANVAS_WIDTH / CANVAS_HEIGHT;
+      
+      // Use a scaling approach that fills more of the canvas while maintaining aspect ratio
+      let scale;
+      if (aspectRatio > canvasRatio) {
+        // For wider images, fill the height
+        scale = scaleY;
+      } else {
+        // For taller images, fill the width
+        scale = scaleX;
+      }
       setImageScale(scale);
     }
   };
@@ -201,87 +222,89 @@ const ImageEditor = () => {
     // Clear the canvas
     ctx.clearRect(0, 0, canvas.width, canvas.height);
     
-    // Draw white background to ensure visibility
+    // Step 1: Draw white background
     ctx.fillStyle = '#ffffff';
     ctx.fillRect(0, 0, canvas.width, canvas.height);
     
-    // Draw the product image as background
+    // Step 2: Draw the product image (canvas background)
     console.log("Drawing product image");
-    
-    // Try multiple approaches
     if (productImageRef.current) {
-      // 1. Use the loaded image from state
       console.log("Using image from state:", productImageRef.current.width, "x", productImageRef.current.height);
       ctx.drawImage(productImageRef.current, 0, 0, canvas.width, canvas.height);
     } else if (preloadedCanvasImage.complete && preloadedCanvasImage.width > 0) {
-      // 2. Use the preloaded image
       console.log("Using preloaded image:", preloadedCanvasImage.width, "x", preloadedCanvasImage.height);
       ctx.drawImage(preloadedCanvasImage, 0, 0, canvas.width, canvas.height);
-      
-      // Update the state for future renders
       setProductImage(preloadedCanvasImage);
       productImageRef.current = preloadedCanvasImage;
     } else {
-      // 3. Show a simple placeholder
       console.error("No product image available - showing placeholder");
       ctx.fillStyle = '#f0f0f0';
       ctx.fillRect(0, 0, canvas.width, canvas.height);
-      
-      // Add a border to visualize the canvas area
       ctx.strokeStyle = '#aaaaaa';
       ctx.lineWidth = 1;
       ctx.strokeRect(0, 0, canvas.width, canvas.height);
     }
     
-    // Draw the user image if available
+    // Step 3: Check if we can calculate the printable area
+    if (printableCorners.length !== 4 || !productImageRef.current) {
+      console.warn("No printable area data or product image available");
+      
+      // Just draw the user image without any overlay
+      if (imageRef.current) {
+        ctx.save();
+        ctx.translate(imagePosition.x, imagePosition.y);
+        ctx.scale(imageScale, imageScale);
+        ctx.drawImage(imageRef.current, 0, 0);
+        ctx.restore();
+      }
+      
+      return;
+    }
+    
+    // We have printable area data and product image, proceed with proper overlay
+    const scaleFactorX = canvas.width / productImageRef.current.width;
+    const scaleFactorY = canvas.height / productImageRef.current.height;
+    
+    // No longer need to apply clipping or draw the image here, as we handle it in Step 4
+    // This section is now effectively removed to prevent duplicate drawing
+    
+    // Step 4: Draw the user image first without clipping
     if (imageRef.current) {
-      console.log("Drawing user image");
+      // First draw the entire image
       ctx.save();
       ctx.translate(imagePosition.x, imagePosition.y);
       ctx.scale(imageScale, imageScale);
       ctx.drawImage(imageRef.current, 0, 0);
       ctx.restore();
-    }
-    
-    // Add overlay around the printable area (not on it)
-    if (printableCorners.length === 4 && productImageRef.current) {
-      console.log("Drawing non-printable area overlay");
       
-      const scaleFactorX = canvas.width / productImageRef.current.width;
-      const scaleFactorY = canvas.height / productImageRef.current.height;
-      
-      // Create clip path for the printable area
+      // Then apply a semi-transparent overlay to parts outside the printable area
       ctx.save();
       
-      // First define the printable area path
+      // Create a path for the entire canvas
       ctx.beginPath();
+      ctx.rect(0, 0, canvas.width, canvas.height);
+      
+      // Cut out the printable area
       ctx.moveTo(printableCorners[0].x * scaleFactorX, printableCorners[0].y * scaleFactorY);
       for (let i = 1; i < printableCorners.length; i++) {
         ctx.lineTo(printableCorners[i].x * scaleFactorX, printableCorners[i].y * scaleFactorY);
       }
       ctx.closePath();
       
-      // Save the current context state with the printable area path
-      ctx.save();
-      
-      // Create a clipping path for everything OUTSIDE the printable area
-      // by creating a path for the entire canvas and using "evenodd" fill rule
-      ctx.beginPath();
-      ctx.rect(0, 0, canvas.width, canvas.height);
+      // Define the clipping path (everything except the printable area)
       ctx.clip("evenodd");
       
-      // Now draw a semi-transparent overlay that only appears OUTSIDE the printable area
-      ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
-      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      // Apply a semi-transparent grey overlay only to the image area outside the printable region
+      ctx.globalCompositeOperation = 'source-atop';
+      ctx.fillStyle = 'rgba(100, 100, 100, 0.5)';
+      ctx.fillRect(imagePosition.x, imagePosition.y, 
+                 imageRef.current.width * imageScale, 
+                 imageRef.current.height * imageScale);
       
-      // Restore the context
       ctx.restore();
-      ctx.restore();
-      
-      // No blue border around the printable area (as requested)
     }
     
-    // Draw resize handles at the corners (on top of everything)
+    // Draw resize handles at the corners (now just visual indicators)
     if (imageRef.current && image) {
       const userImageWidth = imageRef.current.width * imageScale;
       const userImageHeight = imageRef.current.height * imageScale;
@@ -293,7 +316,7 @@ const ImageEditor = () => {
     }
   };
 
-  // Function to draw resize handles at the corners of the image
+  // Function to draw resize handles at the corners of the image (visual only, no functionality)
   const drawResizeHandles = (ctx, x, y, width, height) => {
     const halfHandleSize = HANDLE_SIZE / 2;
     
@@ -329,57 +352,18 @@ const ImageEditor = () => {
     return dx * dx + dy * dy <= radius * radius;
   };
   
-  // Function to check if mouse is over a resize handle
-  const getResizeHandle = (x, y) => {
-    if (!imageRef.current) return null;
-    
-    const halfHandleSize = HANDLE_SIZE / 2;
-    const userImageWidth = imageRef.current.width * imageScale;
-    const userImageHeight = imageRef.current.height * imageScale;
-    
-    // Define the positions of the resize handles
-    const handlePositions = {
-      'nw': { x: imagePosition.x, y: imagePosition.y },
-      'ne': { x: imagePosition.x + userImageWidth, y: imagePosition.y },
-      'se': { x: imagePosition.x + userImageWidth, y: imagePosition.y + userImageHeight },
-      'sw': { x: imagePosition.x, y: imagePosition.y + userImageHeight }
-    };
-    
-    // Check each handle
-    for (const corner of CORNERS) {
-      const handleCenter = {
-        x: handlePositions[corner].x + (corner.includes('e') ? 0 : 0),
-        y: handlePositions[corner].y + (corner.includes('s') ? 0 : 0)
-      };
-      
-      if (isInsideCircle(x, y, handleCenter.x, handleCenter.y, halfHandleSize + 10)) {
-        return corner;
-      }
-    }
-    
-    return null;
-  };
+  // Removed resize handle detection as we're removing the zoom/resize feature
 
-  // Mouse and touch event handlers
+  // Mouse and touch event handlers - simplified for drag only
   const handleMouseDown = (e) => {
     e.preventDefault();
     const rect = canvasRef.current.getBoundingClientRect();
     const x = e.clientX - rect.left;
     const y = e.clientY - rect.top;
     
-    // Check if user clicked on a resize handle
-    const handleCorner = getResizeHandle(x, y);
-    
-    if (handleCorner) {
-      // Start resizing
-      setIsResizing(true);
-      setActiveCorner(handleCorner);
-      setDragStart({ x, y });
-    } else {
-      // Start dragging
-      setIsDragging(true);
-      setDragStart({ x, y });
-    }
+    // Start dragging
+    setIsDragging(true);
+    setDragStart({ x, y });
   };
 
   const handleTouchStart = (e) => {
@@ -389,48 +373,24 @@ const ImageEditor = () => {
       const x = e.touches[0].clientX - rect.left;
       const y = e.touches[0].clientY - rect.top;
       
-      // Check if user touched a resize handle
-      const handleCorner = getResizeHandle(x, y);
-      
-      if (handleCorner) {
-        // Start resizing
-        setIsResizing(true);
-        setActiveCorner(handleCorner);
-        setDragStart({ x, y });
-      } else {
-        // Start dragging
-        setIsDragging(true);
-        setDragStart({ x, y });
-      }
+      // Start dragging
+      setIsDragging(true);
+      setDragStart({ x, y });
     }
   };
 
   const handleMouseMove = (e) => {
-    if (!isDragging && !isResizing) return;
+    if (!isDragging) return;
     e.preventDefault();
     
-    const clientX = e.clientX;
-    const clientY = e.clientY;
-    
-    if (isDragging) {
-      moveImage(clientX, clientY);
-    } else if (isResizing) {
-      resizeImage(clientX, clientY);
-    }
+    moveImage(e.clientX, e.clientY);
   };
 
   const handleTouchMove = (e) => {
-    if ((!isDragging && !isResizing) || e.touches.length !== 1) return;
+    if (!isDragging || e.touches.length !== 1) return;
     e.preventDefault();
     
-    const clientX = e.touches[0].clientX;
-    const clientY = e.touches[0].clientY;
-    
-    if (isDragging) {
-      moveImage(clientX, clientY);
-    } else if (isResizing) {
-      resizeImage(clientX, clientY);
-    }
+    moveImage(e.touches[0].clientX, e.touches[0].clientY);
   };
 
   const moveImage = (clientX, clientY) => {
@@ -449,153 +409,22 @@ const ImageEditor = () => {
     setDragStart({ x, y });
   };
   
-  const resizeImage = (clientX, clientY) => {
-    if (!imageRef.current || !activeCorner) return;
-    
-    const rect = canvasRef.current.getBoundingClientRect();
-    const x = clientX - rect.left;
-    const y = clientY - rect.top;
-    
-    const deltaX = x - dragStart.x;
-    const deltaY = y - dragStart.y;
-    
-    // Original dimensions
-    const originalWidth = imageRef.current.width * imageScale;
-    const originalHeight = imageRef.current.height * imageScale;
-    
-    // Calculate new scale based on the active corner
-    let newScale = imageScale;
-    let newX = imagePosition.x;
-    let newY = imagePosition.y;
-    
-    // Maintain aspect ratio
-    const aspectRatio = imageRef.current.width / imageRef.current.height;
-    
-    // Handle different corners
-    switch (activeCorner) {
-      case 'nw':
-        // Northwest - change position and scale
-        {
-          const widthChange = -deltaX;
-          const heightChange = -deltaY;
-          const scaleChangeX = (originalWidth + widthChange) / imageRef.current.width;
-          const scaleChangeY = (originalHeight + heightChange) / imageRef.current.height;
-          
-          // Use the larger scale change to maintain aspect ratio
-          newScale = Math.max(0.1, Math.min(scaleChangeX, scaleChangeY));
-          
-          // Adjust position to keep the SE corner fixed
-          newX = imagePosition.x + originalWidth - (imageRef.current.width * newScale);
-          newY = imagePosition.y + originalHeight - (imageRef.current.height * newScale);
-        }
-        break;
-      case 'ne':
-        // Northeast - change width and y position
-        {
-          const widthChange = deltaX;
-          const heightChange = -deltaY;
-          const scaleChangeX = (originalWidth + widthChange) / imageRef.current.width;
-          const scaleChangeY = (originalHeight + heightChange) / imageRef.current.height;
-          
-          // Use the larger scale change to maintain aspect ratio
-          newScale = Math.max(0.1, Math.min(scaleChangeX, scaleChangeY));
-          
-          // Adjust y position to keep the SW corner fixed
-          newY = imagePosition.y + originalHeight - (imageRef.current.height * newScale);
-        }
-        break;
-      case 'se':
-        // Southeast - just change scale
-        {
-          const widthChange = deltaX;
-          const heightChange = deltaY;
-          const scaleChangeX = (originalWidth + widthChange) / imageRef.current.width;
-          const scaleChangeY = (originalHeight + heightChange) / imageRef.current.height;
-          
-          // Use the smaller scale change to maintain aspect ratio
-          newScale = Math.max(0.1, Math.min(scaleChangeX, scaleChangeY));
-        }
-        break;
-      case 'sw':
-        // Southwest - change x position and height
-        {
-          const widthChange = -deltaX;
-          const heightChange = deltaY;
-          const scaleChangeX = (originalWidth + widthChange) / imageRef.current.width;
-          const scaleChangeY = (originalHeight + heightChange) / imageRef.current.height;
-          
-          // Use the larger scale change to maintain aspect ratio
-          newScale = Math.max(0.1, Math.min(scaleChangeX, scaleChangeY));
-          
-          // Adjust x position to keep the NE corner fixed
-          newX = imagePosition.x + originalWidth - (imageRef.current.width * newScale);
-        }
-        break;
-      default:
-        break;
-    }
-    
-    setImageScale(newScale);
-    setImagePosition({ x: newX, y: newY });
-    setDragStart({ x, y });
-  };
+  // Removed resizeImage function as we're removing the zoom/resize feature
 
   const handleMouseUp = () => {
     setIsDragging(false);
-    setIsResizing(false);
-    setActiveCorner(null);
   };
 
   const handleTouchEnd = () => {
     setIsDragging(false);
-    setIsResizing(false);
-    setActiveCorner(null);
   };
   
   // Function to determine the cursor style based on the current interaction state
   const getCursorStyle = () => {
-    if (isDragging) {
-      return 'grabbing';
-    }
-    
-    if (isResizing) {
-      switch (activeCorner) {
-        case 'nw':
-        case 'se':
-          return 'nwse-resize';
-        case 'ne':
-        case 'sw':
-          return 'nesw-resize';
-        default:
-          return 'pointer';
-      }
-    }
-    
-    // For dynamic cursor on hover - not implementing this yet as it requires
-    // tracking mouse position in real-time, which is a bit more complex
-    
-    return 'grab';
+    return isDragging ? 'grabbing' : 'grab';
   };
 
-  const handleWheel = (e) => {
-    e.preventDefault();
-    
-    // Calculate scale change based on wheel delta
-    const delta = e.deltaY * -0.01;
-    const newScale = Math.max(0.1, imageScale + delta);
-    
-    // Get mouse position relative to canvas
-    const rect = canvasRef.current.getBoundingClientRect();
-    const mouseX = e.clientX - rect.left;
-    const mouseY = e.clientY - rect.top;
-    
-    // Calculate new position to zoom toward mouse position
-    const newX = imagePosition.x - (mouseX - imagePosition.x) * (newScale / imageScale - 1);
-    const newY = imagePosition.y - (mouseY - imagePosition.y) * (newScale / imageScale - 1);
-    
-    setImageScale(newScale);
-    setImagePosition({ x: newX, y: newY });
-  };
+  // Removed wheel handler as we're removing the zoom feature
 
   // Crop the image to the printable area
   const cropImage = () => {
@@ -657,25 +486,17 @@ const ImageEditor = () => {
     const centerX = (printableCorners[0].x + printableCorners[1].x) / 2 * scaleFactorX;
     const centerY = (printableCorners[0].y + printableCorners[3].y) / 2 * scaleFactorY;
     
-    // Calculate scale to fit the user image inside the printable area
-    const img = imageRef.current;
-    const scaleX = printableWidth / img.width;
-    const scaleY = printableHeight / img.height;
-    const scale = Math.min(scaleX, scaleY) * 0.9; // 90% of the printable area
-    
-    setImageScale(scale);
-    
     // Center the image in the printable area
     setImagePosition({
-      x: centerX - (img.width * scale / 2),
-      y: centerY - (img.height * scale / 2)
+      x: centerX - (imageRef.current.width * imageScale / 2),
+      y: centerY - (imageRef.current.height * imageScale / 2)
     });
   };
 
   return (
     <div className="editor-container">
       <h1>Image Editor</h1>
-      <p>Drag your image to position it on the canvas. Only the area inside the blue outline will be printed.</p>
+      <p>Drag your image to position it on the canvas. The image will be fitted to minimize cropping.</p>
       
       <div className="canvas-container" ref={containerRef}>
         <canvas 
@@ -689,7 +510,6 @@ const ImageEditor = () => {
           onTouchStart={handleTouchStart}
           onTouchMove={handleTouchMove}
           onTouchEnd={handleTouchEnd}
-          onWheel={handleWheel}
           style={{ 
             cursor: getCursorStyle() 
           }}
@@ -698,15 +518,14 @@ const ImageEditor = () => {
       
       <div className="editor-controls">
         <button className="reset-button" onClick={resetImage}>Reset Position</button>
-        <div className="scale-display">Zoom: {Math.round(imageScale * 100)}%</div>
       </div>
       
       <div className="editor-instructions">
         <h3>Instructions:</h3>
         <ul>
           <li>Drag the image to reposition it</li>
-          <li>Use mouse wheel to zoom in and out</li>
-          <li>Only the area inside the blue outline will be printed</li>
+          <li>The lighter area shows what will be printed</li>
+          <li>The darker areas will not be printed</li>
         </ul>
       </div>
       
