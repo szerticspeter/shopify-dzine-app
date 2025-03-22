@@ -23,36 +23,70 @@ function StyleTest() {
   }, []);
 
   // Fetch style list from the Dzine.ai API
+  // Generic function for making API calls with retry logic
+  const makeApiCall = async (url, method = 'GET', body = null, retries = 3) => {
+    // Get API key
+    const apiKey = process.env.REACT_APP_DZINE_API_KEY;
+    
+    if (!apiKey || apiKey === 'your_api_key_here') {
+      throw new Error('No valid API key configured. Please set up your REACT_APP_DZINE_API_KEY');
+    }
+    
+    let lastError = null;
+    let delay = 1000;
+    
+    for (let attempt = 0; attempt < retries; attempt++) {
+      try {
+        if (attempt > 0) {
+          console.log(`Retry attempt ${attempt + 1}/${retries} for ${url}`);
+        }
+        
+        const response = await fetch(url, {
+          method,
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': apiKey.trim(),
+            'Cache-Control': 'no-cache',
+            'Pragma': 'no-cache'
+          },
+          ...(body && { body: JSON.stringify(body) })
+        });
+        
+        if (!response.ok) {
+          throw new Error(`API call failed: ${response.status} ${response.statusText}`);
+        }
+        
+        return await response.json();
+      } catch (error) {
+        console.error(`API call attempt ${attempt + 1} failed:`, error);
+        lastError = error;
+        
+        if (attempt < retries - 1) {
+          await new Promise(resolve => setTimeout(resolve, delay));
+          delay *= 2; // Exponential backoff
+        }
+      }
+    }
+    
+    // Provide more specific error message for common issues
+    if (lastError instanceof TypeError && lastError.message.includes('fetch')) {
+      throw new Error('Network connection issue. Please check your internet connection and try again.');
+    } else if (lastError instanceof TypeError && lastError.message.includes('JSON')) {
+      throw new Error('Invalid response from server. The API may be temporarily unavailable.');
+    } else {
+      throw lastError || new Error('API call failed after all retries');
+    }
+  };
+
   const fetchStyleList = async () => {
     setIsLoading(true);
     setError(null);
     
     try {
-      // Get API key from environment variables
-      const apiKey = process.env.REACT_APP_DZINE_API_KEY;
+      // Fetch the style list using our retry-enabled API call function
+      console.log('Fetching style list...');
       
-      // Check if we have an API key
-      if (!apiKey || apiKey === 'your_api_key_here') {
-        throw new Error('No valid API key configured. Please set up your REACT_APP_DZINE_API_KEY');
-      }
-      
-      // Fetch the style list
-      console.log('Fetching style list with API key:', apiKey.substring(0, 5) + '...');
-      
-      const response = await fetch('https://papi.dzine.ai/openapi/v1/style/list', {
-        method: 'GET',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': apiKey.trim() // Make sure there's no whitespace
-        }
-      });
-      
-      if (!response.ok) {
-        console.error('Style list fetch failed:', response.status, response.statusText);
-        throw new Error(`Failed to fetch style list: ${response.status} ${response.statusText}`);
-      }
-      
-      const data = await response.json();
+      const data = await makeApiCall('https://papi.dzine.ai/openapi/v1/style/list');
       console.log('Style list API response code:', data.code);
       
       if (data.code === 200 && data.data && data.data.list) {
@@ -239,34 +273,31 @@ function StyleTest() {
         // Convert image to base64
         const base64Image = await fileToBase64(uploadedImage);
         
-        // Make the API request to apply the style
+        // Make the API request to apply the style using our centralized API call function
         console.log(`Sending img2img request with style_code: ${styleCode} (base model: ${baseModel})`);
-        const response = await fetch('https://papi.dzine.ai/openapi/v1/create_task_img2img', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': apiKey.trim() // Make sure there's no whitespace
-          },
-          body: JSON.stringify({
-            prompt: "Transform this image with the selected style",
-            style_code: styleCode,
-            style_intensity: 0.9,
-            structure_match: 0.7,
-            quality_mode: 1,
-            generate_slots: [1, 0, 0, 0],
-            images: [
-              {
-                base64_data: base64Image
-              }
-            ]
-          })
-        });
         
-        if (!response.ok) {
-          throw new Error(`Failed to create styling task: ${response.status} ${response.statusText}`);
-        }
+        // Prepare request body
+        const requestBody = {
+          prompt: "Transform this image with the selected style",
+          style_code: styleCode,
+          style_intensity: 0.9,
+          structure_match: 0.7,
+          quality_mode: 1,
+          generate_slots: [1, 0, 0, 0],
+          images: [
+            {
+              base64_data: base64Image
+            }
+          ]
+        };
         
-        const data = await response.json();
+        // Make the API call with retries
+        const data = await makeApiCall(
+          'https://papi.dzine.ai/openapi/v1/create_task_img2img',
+          'POST',
+          requestBody,
+          5 // More retries for this important call
+        );
         
         // Debug: Log the full API response
         console.log('API Response:', JSON.stringify(data, null, 2));
@@ -320,39 +351,32 @@ function StyleTest() {
         throw new Error('No valid API key configured');
       }
       
-      // Function to show status message to user
+      // Simple elapsed time tracking instead of complicated progress calculation
+      const startTime = Date.now();
+      let lastStatusUpdate = 0;
+      
+      // Function to show status message to user - simplified
       const updateStatusMessage = (status, attempt) => {
-        // If we're in a long timeout, we'll adjust the progress calculation to make it more informative
-        let progressPct;
-        let timeMessage;
+        const now = Date.now();
+        const elapsedSeconds = Math.round((now - startTime) / 1000);
         
-        if (baseModel === 'S' && maxAttempts > 100) {
-          // For very long timeouts, make the first 20% of the progress bar move faster
-          // to give a sense of progress, then slow down for the remaining time
-          if (attempt <= maxAttempts * 0.2) {
-            // First 20% of attempts maps to first 50% of progress bar
-            progressPct = Math.round((attempt / (maxAttempts * 0.2)) * 50);
-            timeMessage = `(${Math.round(attempt * 2)} seconds)`;
-          } else {
-            // Remaining 80% of attempts maps to last 50% of progress bar
-            progressPct = Math.round(50 + ((attempt - (maxAttempts * 0.2)) / (maxAttempts * 0.8)) * 50);
-            timeMessage = `(${Math.round(attempt * 2)} seconds)`;
-          }
-        } else {
-          // Standard progress calculation for shorter timeouts
-          progressPct = Math.round((attempt/maxAttempts) * 100);
-          timeMessage = `${progressPct}%`;
+        // Only update status every second to avoid too many React renders
+        if (now - lastStatusUpdate < 1000 && attempt > 1) {
+          return;
         }
         
-        const message = `Processing image (${status})... ${timeMessage}`;
-        if (message !== statusMessageShown) {
-          statusMessageShown = message;
-          // Update the status message and progress states
-          setStatusMessage(message);
-          setProgress(progressPct);
-          // Also update document title
-          document.title = `Processing: ${timeMessage}`;
-        }
+        lastStatusUpdate = now;
+        
+        // Calculate a simple progress percentage that completes around 95% and then stays there
+        const progressPct = Math.min(95, Math.round(elapsedSeconds / (baseModel === 'S' ? 8 : 4))); 
+        
+        const message = `Processing image (${status})... ${elapsedSeconds}s elapsed`;
+        
+        // Update the status message and progress states
+        setStatusMessage(message);
+        setProgress(progressPct);
+        // Also update document title
+        document.title = `Processing: ${elapsedSeconds}s`;
       };
       
       while (!isComplete && attempts < maxAttempts) {
@@ -361,20 +385,13 @@ function StyleTest() {
         // Wait 2 seconds between polls
         await new Promise(resolve => setTimeout(resolve, 2000));
         
-        // Check task progress
-        const response = await fetch(`https://papi.dzine.ai/openapi/v1/get_task_progress/${taskId}`, {
-          method: 'GET',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': apiKey.trim() // Make sure there's no whitespace
-          }
-        });
-        
-        if (!response.ok) {
-          throw new Error(`Failed to check task progress: ${response.status} ${response.statusText}`);
-        }
-        
-        const data = await response.json();
+        // Check task progress using our centralized API call function
+        const data = await makeApiCall(
+          `https://papi.dzine.ai/openapi/v1/get_task_progress/${taskId}`,
+          'GET',
+          null,
+          3 // 3 retries for status check
+        );
         
         // Debug: Log the task progress response (but not on every attempt to avoid console spam)
         if (attempts % 5 === 0 || attempts === 1) {
