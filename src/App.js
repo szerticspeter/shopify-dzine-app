@@ -2,7 +2,6 @@ import React, { useState, useEffect, useRef } from 'react';
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import './App.css';
 import ProductSelect from './ProductSelect';
-import StyleTest from './StyleTest';
 
 function App() {
   const [uploadedImage, setUploadedImage] = useState(null);
@@ -173,8 +172,9 @@ function App() {
         const requestBody = {
           prompt: "Transform this image with the selected style",
           style_code: apiStyleCode,
-          style_intensity: 0.9,
+          style_intensity: 0.7,
           structure_match: 0.7,
+          face_match: 1,
           quality_mode: 1,
           generate_slots: [1, 0, 0, 0],
           images: [
@@ -398,9 +398,6 @@ function App() {
             <header className="App-header">
               <h1>Give a Special Gift</h1>
               <p className="subtitle">Order a stylized image of your loved ones on premium products</p>
-              <div style={{ marginTop: '20px' }}>
-                <a href="/style-test" className="back-link">Go to Style Testing Tool</a>
-              </div>
             </header>
             
             <main>
@@ -545,7 +542,6 @@ function App() {
           </div>
         } />
         <Route path="/products" element={<ProductSelect />} />
-        <Route path="/style-test" element={<StyleTest />} />
       </Routes>
     </Router>
   );
