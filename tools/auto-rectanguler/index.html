@@ -1,0 +1,1257 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Canvas Rectangle Detector</title>
+  <style>
+    /* Reset and base styles */
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+    
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
+        'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue',
+        sans-serif;
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
+      background-color: #f5f5f5;
+      color: #333;
+      line-height: 1.6;
+    }
+    
+    /* Layout */
+    .app-container {
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 20px;
+    }
+    
+    .app-header {
+      text-align: center;
+      margin-bottom: 30px;
+      padding-bottom: 20px;
+      border-bottom: 1px solid #ddd;
+    }
+    
+    .app-header h1 {
+      margin-bottom: 8px;
+      color: #2c3e50;
+    }
+    
+    .subtitle {
+      color: #7f8c8d;
+      margin-top: 0;
+    }
+    
+    .image-upload-section {
+      background-color: white;
+      border-radius: 8px;
+      padding: 25px;
+      box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
+      margin-bottom: 30px;
+    }
+    
+    .upload-container {
+      border: 2px dashed #bdc3c7;
+      border-radius: 5px;
+      padding: 30px;
+      text-align: center;
+      transition: all 0.2s ease;
+      cursor: pointer;
+      margin-bottom: 20px;
+    }
+    
+    .upload-container:hover, .upload-container.drag-over {
+      border-color: #3498db;
+      background-color: rgba(52, 152, 219, 0.05);
+    }
+    
+    .upload-icon {
+      width: 50px;
+      height: 50px;
+      color: #7f8c8d;
+      margin-bottom: 15px;
+    }
+    
+    .detector-section {
+      display: flex;
+      flex-direction: column;
+      background-color: white;
+      border-radius: 8px;
+      padding: 25px;
+      box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
+      margin-bottom: 30px;
+    }
+    
+    .canvas-container {
+      position: relative;
+      margin: 0 auto;
+      max-width: 100%;
+      overflow: hidden;
+      background-color: #f0f0f0;
+      border: 1px solid #ddd;
+      box-shadow: 0 1px 5px rgba(0, 0, 0, 0.1);
+    }
+    
+    .canvas-wrapper {
+      position: relative;
+      margin: 0 auto;
+    }
+    
+    canvas {
+      display: block;
+      max-width: 100%;
+      height: auto;
+    }
+    
+    .marker {
+      position: absolute;
+      width: 16px;
+      height: 16px;
+      background-color: #e74c3c;
+      border: 3px solid white;
+      border-radius: 50%;
+      transform: translate(-50%, -50%);
+      cursor: move;
+      z-index: 10;
+      box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.3);
+      transition: transform 0.1s ease;
+    }
+    
+    .marker:hover, .marker.active {
+      transform: translate(-50%, -50%) scale(1.2);
+      z-index: 11;
+    }
+    
+    .marker-label {
+      position: absolute;
+      background-color: rgba(0, 0, 0, 0.7);
+      color: white;
+      padding: 2px 6px;
+      border-radius: 3px;
+      font-size: 12px;
+      white-space: nowrap;
+      pointer-events: none;
+      z-index: 12;
+      transform: translate(-50%, -100%);
+      margin-top: -8px;
+    }
+    
+    .controls-section {
+      margin-top: 20px;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 15px;
+      align-items: center;
+    }
+    
+    .threshold-controls {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      margin-right: 20px;
+    }
+    
+    .threshold-slider {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    
+    .threshold-slider label {
+      min-width: 120px;
+      font-size: 14px;
+    }
+    
+    .threshold-slider input {
+      flex-grow: 1;
+    }
+    
+    .threshold-slider span {
+      min-width: 40px;
+      text-align: right;
+      font-size: 14px;
+    }
+    
+    .control-group {
+      flex-grow: 1;
+      margin-bottom: 15px;
+    }
+    
+    button {
+      background-color: #3498db;
+      color: white;
+      border: none;
+      padding: 10px 15px;
+      border-radius: 4px;
+      cursor: pointer;
+      font-weight: 500;
+      transition: background-color 0.2s;
+    }
+    
+    button:hover {
+      background-color: #2980b9;
+    }
+    
+    button.secondary {
+      background-color: #95a5a6;
+    }
+    
+    button.secondary:hover {
+      background-color: #7f8c8d;
+    }
+    
+    button.success {
+      background-color: #2ecc71;
+    }
+    
+    button.success:hover {
+      background-color: #27ae60;
+    }
+    
+    button:disabled {
+      background-color: #bdc3c7;
+      cursor: not-allowed;
+    }
+    
+    .coordinates-display {
+      background-color: #f9f9f9;
+      border-radius: 4px;
+      padding: 15px;
+      margin-top: 20px;
+      font-family: monospace;
+      font-size: 14px;
+    }
+    
+    .coordinates-display h3 {
+      margin-top: 0;
+      margin-bottom: 10px;
+      font-size: 16px;
+    }
+    
+    .coordinates-table {
+      width: 100%;
+      border-collapse: collapse;
+    }
+    
+    .coordinates-table th, .coordinates-table td {
+      text-align: left;
+      padding: 8px;
+      border-bottom: 1px solid #eee;
+    }
+    
+    .coordinates-table th {
+      font-weight: 600;
+      color: #7f8c8d;
+    }
+    
+    .json-display {
+      background-color: #2c3e50;
+      color: #ecf0f1;
+      padding: 15px;
+      border-radius: 4px;
+      overflow: auto;
+      max-height: 200px;
+    }
+    
+    .instructions {
+      background-color: #f8f9fa;
+      border-left: 4px solid #3498db;
+      padding: 15px;
+      margin-bottom: 20px;
+      font-size: 14px;
+    }
+    
+    .instructions h3 {
+      margin-top: 0;
+      color: #2c3e50;
+    }
+    
+    .instructions ul {
+      margin: 0;
+      padding-left: 20px;
+    }
+    
+    .instructions li {
+      margin-bottom: 5px;
+    }
+    
+    .progressContainer {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background-color: rgba(0, 0, 0, 0.5);
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      flex-direction: column;
+      color: white;
+      z-index: 1000;
+    }
+    
+    .spinner {
+      border: 5px solid #f3f3f3;
+      border-top: 5px solid #3498db;
+      border-radius: 50%;
+      width: 50px;
+      height: 50px;
+      animation: spin 1s linear infinite;
+      margin-bottom: 20px;
+    }
+    
+    @keyframes spin {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+    }
+    
+    .detection-algorithm {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      margin-top: 20px;
+      padding: 15px;
+      background-color: #f0f0f0;
+      border-radius: 4px;
+    }
+    
+    .detection-algorithm h3 {
+      margin-top: 0;
+      margin-bottom: 10px;
+      font-size: 16px;
+    }
+    
+    .algorithm-select {
+      display: flex;
+      gap: 10px;
+    }
+    
+    .algorithm-select label {
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      cursor: pointer;
+    }
+    
+    .no-display {
+      display: none;
+    }
+    
+    @media (max-width: 768px) {
+      .app-container {
+        padding: 15px;
+      }
+      
+      .image-upload-section, .detector-section {
+        padding: 15px;
+      }
+      
+      .upload-container {
+        padding: 20px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div id="app-root" class="app-container">
+    <header class="app-header">
+      <h1>Canvas Rectangle Detector</h1>
+      <p class="subtitle">Automatically detect rectangular canvas in product images</p>
+    </header>
+    
+    <main id="main-content">
+      <!-- This is where the app content will be rendered -->
+    </main>
+    
+    <footer style="text-align: center; margin-top: 20px; font-size: 14px; color: #7f8c8d;">
+      <p>Internal use only - Dzine.ai Canvas App with Prodigi Integration</p>
+    </footer>
+  </div>
+
+  <!-- OpenCV.js loading and progress -->
+  <div id="loading" class="progressContainer" style="display: none;">
+    <div class="spinner"></div>
+    <div id="loadingText">Loading OpenCV.js...</div>
+  </div>
+
+  <!-- Load OpenCV.js from CDN -->
+  <script async src="https://docs.opencv.org/4.5.5/opencv.js" onload="onOpenCvReady();" type="text/javascript"></script>
+
+  <script>
+    // Show the loading indicator while OpenCV.js loads
+    document.getElementById('loading').style.display = 'flex';
+
+    // Main application code
+    function onOpenCvReady() {
+      document.getElementById('loading').style.display = 'none';
+      console.log('OpenCV.js is ready');
+      
+      // Initialize the app
+      initApp();
+    }
+
+    function initApp() {
+      // State variables
+      let image = null;            // Original uploaded image
+      let imageElement = null;     // Image element for display
+      let imageName = "untitled";  // Original image filename
+      let canvasSize = { width: 0, height: 0 };
+      let markers = [
+        { id: 'topLeft', x: 0, y: 0, label: 'Top Left' },
+        { id: 'topRight', x: 0, y: 0, label: 'Top Right' },
+        { id: 'bottomRight', x: 0, y: 0, label: 'Bottom Right' },
+        { id: 'bottomLeft', x: 0, y: 0, label: 'Bottom Left' }
+      ];
+      let activeMarker = null;
+      let isDragging = false;
+      
+      // Detection parameters
+      let cannyThreshold1 = 50;  // Default Canny threshold 1
+      let cannyThreshold2 = 150; // Default Canny threshold 2
+      let blurSize = 5;          // Default blur kernel size
+      let contourAreaMin = 1000; // Minimum contour area
+      let selectedAlgorithm = 'contours'; // Default algorithm: 'contours', 'hough', or 'combined'
+      
+      // DOM references
+      let fileInput = null;
+      let canvas = null;
+      let canvasContext = null;
+      let canvasWrapper = null;
+      let markerElements = [];
+      let edgesCanvas = null; // Canvas for displaying edge detection
+
+      // Initialize the application
+      function init() {
+        renderMainContent();
+      }
+
+      // Render the main content based on state
+      function renderMainContent() {
+        const mainContent = document.getElementById('main-content');
+        
+        if (!image) {
+          // Render image upload UI
+          mainContent.innerHTML = `
+            <section class="image-upload-section">
+              <div class="instructions">
+                <h3>Getting Started</h3>
+                <p>Upload a product image to detect the rectangular canvas area.</p>
+                <ul>
+                  <li>The algorithm works best with images of white/light canvas against a contrasting background</li>
+                  <li>Canvas should be photographed straight-on, not at an angle</li>
+                  <li>After detection, you can manually adjust the corner markers if needed</li>
+                </ul>
+              </div>
+              
+              <div class="upload-container" id="upload-container">
+                <svg class="upload-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M0 0h24v24H0z" fill="none"/>
+                  <path d="M19 7v2.99s-1.99.01-2 0V7h-3s.01-1.99 0-2h3V2h2v3h3v2h-3zm-3 4V8h-3V5H5c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2v-8h-5zM5 19l3-4 2 3 3-4 4 5H5z"/>
+                </svg>
+                <h3>Upload Product Photo</h3>
+                <p>Click to browse or drag & drop an image file here</p>
+                <input type="file" id="file-input" accept="image/*" style="display: none;" />
+              </div>
+            </section>
+          `;
+          
+          // Setup file input
+          fileInput = document.getElementById('file-input');
+          const uploadContainer = document.getElementById('upload-container');
+          
+          fileInput.addEventListener('change', handleImageUpload);
+          uploadContainer.addEventListener('click', () => fileInput.click());
+          uploadContainer.addEventListener('dragover', handleDragOver);
+          uploadContainer.addEventListener('dragleave', handleDragLeave);
+          uploadContainer.addEventListener('drop', handleDrop);
+        } else {
+          // Render detector UI with canvas
+          mainContent.innerHTML = `
+            <section class="detector-section">
+              <div class="instructions">
+                <h3>Rectangle Detection</h3>
+                <p>The algorithm will try to detect the rectangular canvas in the image.</p>
+                <ul>
+                  <li>If the detection isn't perfect, you can manually adjust the corner markers</li>
+                  <li>Drag any marker to fine-tune its position</li>
+                  <li>When satisfied with the results, export the JSON data</li>
+                </ul>
+              </div>
+              
+              <div class="detection-algorithm">
+                <h3>Detection Algorithm</h3>
+                <div class="algorithm-select">
+                  <label>
+                    <input type="radio" name="algorithm" value="contours" ${selectedAlgorithm === 'contours' ? 'checked' : ''}>
+                    Contour Detection
+                  </label>
+                  <label>
+                    <input type="radio" name="algorithm" value="hough" ${selectedAlgorithm === 'hough' ? 'checked' : ''}>
+                    Hough Line Transform
+                  </label>
+                  <label>
+                    <input type="radio" name="algorithm" value="combined" ${selectedAlgorithm === 'combined' ? 'checked' : ''}>
+                    Combined Method
+                  </label>
+                </div>
+              </div>
+              
+              <div class="threshold-controls">
+                <div class="threshold-slider">
+                  <label for="canny-threshold1">Edge Detection Low</label>
+                  <input type="range" id="canny-threshold1" min="0" max="255" value="${cannyThreshold1}">
+                  <span id="canny-threshold1-value">${cannyThreshold1}</span>
+                </div>
+                <div class="threshold-slider">
+                  <label for="canny-threshold2">Edge Detection High</label>
+                  <input type="range" id="canny-threshold2" min="0" max="255" value="${cannyThreshold2}">
+                  <span id="canny-threshold2-value">${cannyThreshold2}</span>
+                </div>
+                <div class="threshold-slider">
+                  <label for="blur-size">Blur Strength</label>
+                  <input type="range" id="blur-size" min="1" max="21" step="2" value="${blurSize}">
+                  <span id="blur-size-value">${blurSize}</span>
+                </div>
+              </div>
+              
+              <div class="canvas-wrapper" id="canvas-wrapper">
+                <div class="canvas-container" id="canvas-container">
+                  <canvas id="detector-canvas"></canvas>
+                  <div id="markers-container"></div>
+                </div>
+              </div>
+              
+              <div style="display: flex; justify-content: flex-end; margin-top: 20px;">
+                <button id="detect-button" class="success">Detect Rectangle</button>
+              </div>
+              <div class="canvas-wrapper" style="display: none;">
+                <canvas id="edges-canvas"></canvas>
+              </div>
+              
+              <div class="controls-section">
+                <button id="reset-button" class="secondary">
+                  Upload Different Image
+                </button>
+                <button id="export-button" class="success">
+                  Export JSON
+                </button>
+              </div>
+              
+              <div class="coordinates-display">
+                <h3>Corner Coordinates</h3>
+                <table class="coordinates-table">
+                  <thead>
+                    <tr>
+                      <th>Corner</th>
+                      <th>X</th>
+                      <th>Y</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    ${markers.map(marker => `
+                      <tr>
+                        <td>${marker.label}</td>
+                        <td>${marker.x}</td>
+                        <td>${marker.y}</td>
+                      </tr>
+                    `).join('')}
+                  </tbody>
+                </table>
+                
+                <h3 style="margin-top: 20px;">JSON Output</h3>
+                <pre class="json-display">
+${generateJSON()}
+                </pre>
+              </div>
+            </section>
+          `;
+          
+          // Setup canvas
+          canvas = document.getElementById('detector-canvas');
+          canvasContext = canvas.getContext('2d');
+          edgesCanvas = document.getElementById('edges-canvas');
+          canvasWrapper = document.getElementById('canvas-wrapper');
+          
+          // Set canvas dimensions to match the image
+          canvas.width = canvasSize.width;
+          canvas.height = canvasSize.height;
+          edgesCanvas.width = canvasSize.width;
+          edgesCanvas.height = canvasSize.height;
+          
+          // Draw the original image
+          drawImageOnCanvas();
+          
+          // Create the markers
+          createMarkers();
+          
+          // Setup event handlers
+          document.getElementById('detect-button').addEventListener('click', detectRectangle);
+          document.getElementById('reset-button').addEventListener('click', resetDetector);
+          document.getElementById('export-button').addEventListener('click', exportJSON);
+          
+          // Setup threshold controls
+          const cannyThreshold1Slider = document.getElementById('canny-threshold1');
+          const cannyThreshold2Slider = document.getElementById('canny-threshold2');
+          const blurSizeSlider = document.getElementById('blur-size');
+          
+          cannyThreshold1Slider.addEventListener('input', function() {
+            cannyThreshold1 = parseInt(this.value);
+            document.getElementById('canny-threshold1-value').textContent = cannyThreshold1;
+            updateEdgeDetection();
+          });
+          
+          cannyThreshold2Slider.addEventListener('input', function() {
+            cannyThreshold2 = parseInt(this.value);
+            document.getElementById('canny-threshold2-value').textContent = cannyThreshold2;
+            updateEdgeDetection();
+          });
+          
+          blurSizeSlider.addEventListener('input', function() {
+            // Ensure blur size is odd
+            blurSize = parseInt(this.value);
+            if (blurSize % 2 === 0) blurSize += 1;
+            document.getElementById('blur-size-value').textContent = blurSize;
+            updateEdgeDetection();
+          });
+          
+          // Setup algorithm selection
+          const algorithmRadios = document.querySelectorAll('input[name="algorithm"]');
+          algorithmRadios.forEach(radio => {
+            radio.addEventListener('change', function() {
+              selectedAlgorithm = this.value;
+              updateEdgeDetection();
+            });
+          });
+          
+          // Initial edge detection preview
+          updateEdgeDetection();
+        }
+      }
+
+      // Update the edge detection preview (now hidden but still used for detection)
+      function updateEdgeDetection() {
+        // Since we're not displaying the edge preview anymore, 
+        // this function does nothing visual, but we keep it for API consistency
+        console.log("Edge detection parameters updated");
+      }
+
+      // Create marker elements
+      function createMarkers() {
+        const markersContainer = document.getElementById('markers-container');
+        markersContainer.innerHTML = '';
+        
+        markers.forEach(marker => {
+          // Create marker element
+          const markerElement = document.createElement('div');
+          markerElement.id = `marker-${marker.id}`;
+          markerElement.className = 'marker';
+          markerElement.style.left = `${marker.x}px`;
+          markerElement.style.top = `${marker.y}px`;
+          
+          // Create label element
+          const labelElement = document.createElement('div');
+          labelElement.id = `marker-label-${marker.id}`;
+          labelElement.className = 'marker-label';
+          labelElement.textContent = marker.label;
+          labelElement.style.left = `${marker.x}px`;
+          labelElement.style.top = `${marker.y}px`;
+          
+          // Add to DOM
+          markersContainer.appendChild(markerElement);
+          markersContainer.appendChild(labelElement);
+          
+          // Setup marker dragging
+          markerElement.addEventListener('mousedown', function(e) {
+            e.preventDefault();
+            activeMarker = marker.id;
+            isDragging = true;
+            
+            // Add class for styling
+            markerElement.classList.add('active');
+          });
+        });
+        
+        // Global events for dragging
+        document.addEventListener('mousemove', handleMarkerDrag);
+        document.addEventListener('mouseup', function() {
+          if (isDragging) {
+            isDragging = false;
+            const activeMarkerElement = document.getElementById(`marker-${activeMarker}`);
+            if (activeMarkerElement) {
+              activeMarkerElement.classList.remove('active');
+            }
+            activeMarker = null;
+            
+            // Update the coordinates display
+            updateCoordinatesDisplay();
+          }
+        });
+      }
+
+      // Handle marker dragging
+      function handleMarkerDrag(e) {
+        if (!isDragging || !activeMarker) return;
+        
+        // Get the canvas position
+        const rect = canvas.getBoundingClientRect();
+        
+        // Calculate the position within the canvas
+        let x = Math.round(e.clientX - rect.left);
+        let y = Math.round(e.clientY - rect.top);
+        
+        // Clamp to canvas bounds
+        x = Math.max(0, Math.min(x, canvas.width));
+        y = Math.max(0, Math.min(y, canvas.height));
+        
+        // Find and update the marker
+        const index = markers.findIndex(m => m.id === activeMarker);
+        if (index !== -1) {
+          markers[index].x = x;
+          markers[index].y = y;
+          
+          // Update the marker element position
+          const markerElement = document.getElementById(`marker-${activeMarker}`);
+          const labelElement = document.getElementById(`marker-label-${activeMarker}`);
+          
+          if (markerElement) {
+            markerElement.style.left = `${x}px`;
+            markerElement.style.top = `${y}px`;
+          }
+          
+          if (labelElement) {
+            labelElement.style.left = `${x}px`;
+            labelElement.style.top = `${y}px`;
+          }
+        }
+      }
+
+      // Update the coordinates display
+      function updateCoordinatesDisplay() {
+        const tbody = document.querySelector('.coordinates-table tbody');
+        if (tbody) {
+          tbody.innerHTML = markers.map(marker => `
+            <tr>
+              <td>${marker.label}</td>
+              <td>${marker.x}</td>
+              <td>${marker.y}</td>
+            </tr>
+          `).join('');
+        }
+        
+        // Update JSON display
+        const jsonDisplay = document.querySelector('.json-display');
+        if (jsonDisplay) {
+          jsonDisplay.textContent = generateJSON();
+        }
+      }
+
+      // Generate JSON output
+      function generateJSON() {
+        const json = {
+          image_name: imageName,
+          corners: [
+            { x: markers[0].x, y: markers[0].y }, // Top Left
+            { x: markers[1].x, y: markers[1].y }, // Top Right
+            { x: markers[2].x, y: markers[2].y }, // Bottom Right
+            { x: markers[3].x, y: markers[3].y }  // Bottom Left
+          ]
+        };
+        
+        return JSON.stringify(json, null, 2);
+      }
+
+      // Export the JSON data
+      function exportJSON() {
+        const json = generateJSON();
+        const blob = new Blob([json], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `${imageName}-corners.json`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+      }
+
+      // Handle image upload
+      function handleImageUpload(e) {
+        const file = e.target.files[0];
+        if (file && file.type.match('image.*')) {
+          imageName = file.name.replace(/\.[^/.]+$/, ""); // Remove extension
+          processImageFile(file);
+        }
+      }
+
+      // Process the uploaded image file
+      function processImageFile(file) {
+        const reader = new FileReader();
+        reader.onload = function(e) {
+          const img = new Image();
+          img.onload = function() {
+            image = e.target.result;
+            imageElement = img;
+            
+            // Set canvas dimensions based on image
+            canvasSize = { width: img.width, height: img.height };
+            
+            // Reset markers to default positions (corners of image)
+            resetMarkers();
+            
+            // Render the UI
+            renderMainContent();
+          };
+          img.src = e.target.result;
+        };
+        reader.readAsDataURL(file);
+      }
+
+      // Reset markers to default positions
+      function resetMarkers() {
+        markers = [
+          { id: 'topLeft', x: 0, y: 0, label: 'Top Left' },
+          { id: 'topRight', x: canvasSize.width, y: 0, label: 'Top Right' },
+          { id: 'bottomRight', x: canvasSize.width, y: canvasSize.height, label: 'Bottom Right' },
+          { id: 'bottomLeft', x: 0, y: canvasSize.height, label: 'Bottom Left' }
+        ];
+      }
+
+      // Draw the image on the canvas
+      function drawImageOnCanvas() {
+        if (!canvas || !imageElement) return;
+        
+        canvasContext.clearRect(0, 0, canvas.width, canvas.height);
+        canvasContext.drawImage(imageElement, 0, 0);
+      }
+
+      // Handle drag and drop
+      function handleDragOver(e) {
+        e.preventDefault();
+        e.dataTransfer.dropEffect = 'copy';
+        document.getElementById('upload-container').classList.add('drag-over');
+      }
+
+      function handleDragLeave(e) {
+        e.preventDefault();
+        document.getElementById('upload-container').classList.remove('drag-over');
+      }
+
+      function handleDrop(e) {
+        e.preventDefault();
+        document.getElementById('upload-container').classList.remove('drag-over');
+        
+        if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+          const file = e.dataTransfer.files[0];
+          if (file.type.match('image.*')) {
+            imageName = file.name.replace(/\.[^/.]+$/, ""); // Remove extension
+            processImageFile(file);
+          }
+        }
+      }
+
+      // Reset the detector
+      function resetDetector() {
+        image = null;
+        imageElement = null;
+        imageName = "untitled";
+        canvasSize = { width: 0, height: 0 };
+        
+        // Render the upload UI
+        renderMainContent();
+      }
+
+      // Detect rectangle in the image
+      function detectRectangle() {
+        if (!image) return;
+        
+        // Show loading indicator
+        document.getElementById('loading').style.display = 'flex';
+        document.getElementById('loadingText').textContent = 'Detecting rectangle...';
+        
+        // Use setTimeout to allow the UI to update before starting detection
+        setTimeout(() => {
+          try {
+            let corners;
+            
+            // Choose detection algorithm based on selection
+            switch (selectedAlgorithm) {
+              case 'contours':
+                corners = detectRectangleUsingContours();
+                break;
+              case 'hough':
+                corners = detectRectangleUsingHoughLines();
+                break;
+              case 'combined':
+                corners = detectRectangleUsingCombinedMethod();
+                break;
+              default:
+                corners = detectRectangleUsingContours();
+            }
+            
+            // Update markers with detected corners
+            if (corners && corners.length === 4) {
+              for (let i = 0; i < 4; i++) {
+                markers[i].x = corners[i].x;
+                markers[i].y = corners[i].y;
+                
+                // Update marker positions in the UI
+                const markerElement = document.getElementById(`marker-${markers[i].id}`);
+                const labelElement = document.getElementById(`marker-label-${markers[i].id}`);
+                
+                if (markerElement) {
+                  markerElement.style.left = `${corners[i].x}px`;
+                  markerElement.style.top = `${corners[i].y}px`;
+                }
+                
+                if (labelElement) {
+                  labelElement.style.left = `${corners[i].x}px`;
+                  labelElement.style.top = `${corners[i].y}px`;
+                }
+              }
+              
+              // Update the coordinates display
+              updateCoordinatesDisplay();
+            } else {
+              alert('Could not detect rectangle corners. Please adjust the parameters or try a different image.');
+            }
+          } catch (err) {
+            console.error('Error in rectangle detection:', err);
+            alert('Error during rectangle detection. Please try different parameters.');
+          } finally {
+            // Hide loading indicator
+            document.getElementById('loading').style.display = 'none';
+          }
+        }, 50);
+      }
+
+      // Detect rectangle using contours method
+      function detectRectangleUsingContours() {
+        // Load the image into OpenCV format
+        let src = cv.imread(imageElement);
+        let dst = new cv.Mat();
+        let gray = new cv.Mat();
+        let edges = new cv.Mat();
+        let hierarchy = new cv.Mat();
+        
+        try {
+          // Convert to grayscale
+          cv.cvtColor(src, gray, cv.COLOR_RGBA2GRAY);
+          
+          // Apply Gaussian blur
+          let ksize = new cv.Size(blurSize, blurSize);
+          cv.GaussianBlur(gray, gray, ksize, 0, 0, cv.BORDER_DEFAULT);
+          
+          // Apply Canny edge detector
+          cv.Canny(gray, edges, cannyThreshold1, cannyThreshold2, 3, false);
+          
+          // Find contours
+          let contours = new cv.MatVector();
+          cv.findContours(edges, contours, hierarchy, cv.RETR_LIST, cv.CHAIN_APPROX_SIMPLE);
+          
+          // Find the largest rectangle contour
+          let maxArea = 0;
+          let maxContourIndex = -1;
+          let maxApproxContour = null;
+          
+          for (let i = 0; i < contours.size(); ++i) {
+            const contour = contours.get(i);
+            const area = cv.contourArea(contour);
+            
+            // Skip small contours
+            if (area < contourAreaMin) continue;
+            
+            // Create an approximate polygon
+            const perimeter = cv.arcLength(contour, true);
+            const approxCurve = new cv.Mat();
+            cv.approxPolyDP(contour, approxCurve, 0.02 * perimeter, true);
+            
+            // Check if it's a rectangle (4 points) and has reasonable proportions
+            if (approxCurve.rows === 4 && area > maxArea) {
+              // Make sure it's convex
+              const isRectangle = cv.isContourConvex(approxCurve);
+              
+              if (isRectangle) {
+                maxArea = area;
+                maxContourIndex = i;
+                maxApproxContour = approxCurve;
+              } else {
+                approxCurve.delete();
+              }
+            } else {
+              approxCurve.delete();
+            }
+          }
+          
+          if (maxApproxContour) {
+            // Create array of corner points
+            let corners = [];
+            for (let i = 0; i < 4; i++) {
+              corners.push({
+                x: maxApproxContour.data32S[i * 2],
+                y: maxApproxContour.data32S[i * 2 + 1]
+              });
+            }
+            
+            // Sort corners in order: top-left, top-right, bottom-right, bottom-left
+            corners = sortRectCorners(corners);
+            
+            // Clean up
+            maxApproxContour.delete();
+            
+            // Return the corners
+            return corners;
+          }
+          
+          // Clean up
+          contours.delete();
+          hierarchy.delete();
+          src.delete();
+          dst.delete();
+          gray.delete();
+          edges.delete();
+          
+          return null;
+        } catch (err) {
+          console.error('Error in contour detection:', err);
+          
+          // Clean up
+          src.delete();
+          dst.delete();
+          gray.delete();
+          edges.delete();
+          hierarchy.delete();
+          
+          return null;
+        }
+      }
+
+      // Detect rectangle using Hough Line Transform
+      function detectRectangleUsingHoughLines() {
+        // Load the image into OpenCV format
+        let src = cv.imread(imageElement);
+        let dst = new cv.Mat();
+        let gray = new cv.Mat();
+        let edges = new cv.Mat();
+        
+        try {
+          // Convert to grayscale
+          cv.cvtColor(src, gray, cv.COLOR_RGBA2GRAY);
+          
+          // Apply Gaussian blur
+          let ksize = new cv.Size(blurSize, blurSize);
+          cv.GaussianBlur(gray, gray, ksize, 0, 0, cv.BORDER_DEFAULT);
+          
+          // Apply Canny edge detector
+          cv.Canny(gray, edges, cannyThreshold1, cannyThreshold2, 3, false);
+          
+          // Apply Hough Line Transform
+          let lines = new cv.Mat();
+          cv.HoughLines(edges, lines, 1, Math.PI / 180, 100, 0, 0, 0, Math.PI);
+          
+          // Group lines into horizontal and vertical
+          let horizontalLines = [];
+          let verticalLines = [];
+          
+          for (let i = 0; i < lines.rows; ++i) {
+            const rho = lines.data32F[i * 2];
+            const theta = lines.data32F[i * 2 + 1];
+            
+            // Group by angle (vertical lines have theta close to 0 or PI, horizontal lines close to PI/2)
+            if ((theta < 0.3 || theta > 2.8) || (Math.abs(theta - Math.PI) < 0.3)) {
+              verticalLines.push({ rho, theta });
+            } else if (Math.abs(theta - Math.PI/2) < 0.3) {
+              horizontalLines.push({ rho, theta });
+            }
+          }
+          
+          // Need at least 2 horizontal and 2 vertical lines
+          if (horizontalLines.length < 2 || verticalLines.length < 2) {
+            console.log('Not enough lines detected');
+            return null;
+          }
+          
+          // Find the most extreme lines (top, bottom, left, right)
+          const sortedHorizontal = horizontalLines.sort((a, b) => a.rho - b.rho);
+          const sortedVertical = verticalLines.sort((a, b) => a.rho - b.rho);
+          
+          // Get the top, bottom, left and right lines
+          const topLine = sortedHorizontal[0];
+          const bottomLine = sortedHorizontal[sortedHorizontal.length - 1];
+          const leftLine = sortedVertical[0];
+          const rightLine = sortedVertical[sortedVertical.length - 1];
+          
+          // Calculate intersection points to get corners
+          const topLeft = lineIntersection(topLine, leftLine);
+          const topRight = lineIntersection(topLine, rightLine);
+          const bottomRight = lineIntersection(bottomLine, rightLine);
+          const bottomLeft = lineIntersection(bottomLine, leftLine);
+          
+          if (topLeft && topRight && bottomRight && bottomLeft) {
+            // Clean up
+            lines.delete();
+            src.delete();
+            dst.delete();
+            gray.delete();
+            edges.delete();
+            
+            return [topLeft, topRight, bottomRight, bottomLeft];
+          }
+          
+          // Clean up
+          lines.delete();
+          src.delete();
+          dst.delete();
+          gray.delete();
+          edges.delete();
+          
+          return null;
+        } catch (err) {
+          console.error('Error in Hough Lines detection:', err);
+          
+          // Clean up
+          src.delete();
+          dst.delete();
+          gray.delete();
+          edges.delete();
+          
+          return null;
+        }
+      }
+
+      // Combined detection method
+      function detectRectangleUsingCombinedMethod() {
+        // Try contour method first
+        const contoursResult = detectRectangleUsingContours();
+        
+        // If contour method worked, return its result
+        if (contoursResult) {
+          return contoursResult;
+        }
+        
+        // Otherwise try Hough Lines method
+        return detectRectangleUsingHoughLines();
+      }
+
+      // Calculate intersection of two lines in Hough space
+      function lineIntersection(line1, line2) {
+        const rho1 = line1.rho;
+        const theta1 = line1.theta;
+        const rho2 = line2.rho;
+        const theta2 = line2.theta;
+        
+        // Check if lines are parallel
+        if (Math.abs(theta1 - theta2) < 0.1 || Math.abs(Math.abs(theta1 - theta2) - Math.PI) < 0.1) {
+          return null;
+        }
+        
+        const cos1 = Math.cos(theta1);
+        const sin1 = Math.sin(theta1);
+        const cos2 = Math.cos(theta2);
+        const sin2 = Math.sin(theta2);
+        
+        const determinant = cos1 * sin2 - sin1 * cos2;
+        
+        if (Math.abs(determinant) < 0.001) {
+          return null; // Lines are nearly parallel
+        }
+        
+        const x = (sin2 * rho1 - sin1 * rho2) / determinant;
+        const y = (cos1 * rho2 - cos2 * rho1) / determinant;
+        
+        // Make sure the point is within image bounds
+        if (x >= 0 && x < canvasSize.width && y >= 0 && y < canvasSize.height) {
+          return { x: Math.round(x), y: Math.round(y) };
+        }
+        
+        return null;
+      }
+
+      // Sort rectangle corners in correct order: top-left, top-right, bottom-right, bottom-left
+      function sortRectCorners(corners) {
+        // Compute the center of the corners
+        let center = { x: 0, y: 0 };
+        corners.forEach(point => {
+          center.x += point.x;
+          center.y += point.y;
+        });
+        center.x /= corners.length;
+        center.y /= corners.length;
+        
+        // Sort corners based on their angle from the center
+        let sortedCorners = [];
+        
+        // Find top-left corner (top-most, then left-most)
+        let topLeftCorner = null;
+        let minSum = Number.MAX_VALUE;
+        
+        for (let i = 0; i < corners.length; i++) {
+          const sum = corners[i].x + corners[i].y;
+          if (sum < minSum) {
+            minSum = sum;
+            topLeftCorner = corners[i];
+          }
+        }
+        sortedCorners[0] = topLeftCorner;
+        
+        // Find top-right corner (top-most, then right-most)
+        let topRightCorner = null;
+        let minDiff = Number.MAX_VALUE;
+        
+        for (let i = 0; i < corners.length; i++) {
+          if (corners[i] === topLeftCorner) continue;
+          
+          const diff = corners[i].y - corners[i].x;
+          if (diff < minDiff) {
+            minDiff = diff;
+            topRightCorner = corners[i];
+          }
+        }
+        sortedCorners[1] = topRightCorner;
+        
+        // Find bottom-right corner (bottom-most, then right-most)
+        let bottomRightCorner = null;
+        let maxSum = -Number.MAX_VALUE;
+        
+        for (let i = 0; i < corners.length; i++) {
+          if (corners[i] === topLeftCorner || corners[i] === topRightCorner) continue;
+          
+          const sum = corners[i].x + corners[i].y;
+          if (sum > maxSum) {
+            maxSum = sum;
+            bottomRightCorner = corners[i];
+          }
+        }
+        sortedCorners[2] = bottomRightCorner;
+        
+        // Find bottom-left corner (the remaining one)
+        for (let i = 0; i < corners.length; i++) {
+          if (corners[i] !== topLeftCorner && 
+              corners[i] !== topRightCorner && 
+              corners[i] !== bottomRightCorner) {
+            sortedCorners[3] = corners[i];
+            break;
+          }
+        }
+        
+        return sortedCorners;
+      }
+
+      // Start the app
+      init();
+    }
+
+    // Fallback if OpenCV.js fails to load
+    setTimeout(function() {
+      if (typeof cv === 'undefined') {
+        document.getElementById('loadingText').textContent = 'Error loading OpenCV.js. Please check your internet connection and try again.';
+      }
+    }, 10000); // 10 seconds timeout
+  </script>
+</body>
+</html>

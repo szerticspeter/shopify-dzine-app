@@ -401,6 +401,24 @@ function App() {
               <p className="subtitle">Order a stylized image of your loved ones on premium products</p>
               <div className="test-links">
                 <a href="/editor" className="test-link">Test Editor Tool →</a>
+                <a 
+                  href="/tools/product-template-creator-app/standalone.html" 
+                  target="_blank" 
+                  rel="noopener noreferrer"
+                  className="test-link admin-link"
+                  style={{ marginLeft: '15px', background: '#2c3e50' }}
+                >
+                  Admin: Template Creator
+                </a>
+                <a 
+                  href="/tools/auto-rectanguler/index.html" 
+                  target="_blank" 
+                  rel="noopener noreferrer"
+                  className="test-link admin-link"
+                  style={{ marginLeft: '15px', background: '#8e44ad' }}
+                >
+                  Admin: Rectangle Detector
+                </a>
               </div>
             </header>
             
