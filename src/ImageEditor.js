@@ -168,7 +168,9 @@ const ImageEditor = () => {
     // Clear the canvas
     ctx.clearRect(0, 0, canvas.width, canvas.height);
     
-    // Clear to transparent (don't add white background)
+    // Draw white background to ensure visibility
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
     
     // Draw the product image as background if available
     if (productImageRef.current) {
@@ -184,18 +186,6 @@ const ImageEditor = () => {
       ctx.scale(imageScale, imageScale);
       ctx.drawImage(imageRef.current, 0, 0);
       ctx.restore();
-      
-      // Draw resize handles at the corners
-      if (image) {
-        const userImageWidth = imageRef.current.width * imageScale;
-        const userImageHeight = imageRef.current.height * imageScale;
-        
-        // Draw handles
-        ctx.save();
-        // Draw handles
-        drawResizeHandles(ctx, imagePosition.x, imagePosition.y, userImageWidth, userImageHeight);
-        ctx.restore();
-      }
     }
     
     // If we have printable corners data, create the overlay
@@ -205,38 +195,47 @@ const ImageEditor = () => {
       const scaleFactorX = canvas.width / productImageRef.current.width;
       const scaleFactorY = canvas.height / productImageRef.current.height;
       
-      // Create a path for the printable area
+      // Simple overlay implementation
+      ctx.save();
+      
+      // First draw a semi-transparent overlay over the entire canvas
+      ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      
+      // Then cut out the printable area
+      ctx.globalCompositeOperation = 'destination-out';
       ctx.beginPath();
       ctx.moveTo(printableCorners[0].x * scaleFactorX, printableCorners[0].y * scaleFactorY);
       for (let i = 1; i < printableCorners.length; i++) {
         ctx.lineTo(printableCorners[i].x * scaleFactorX, printableCorners[i].y * scaleFactorY);
       }
       ctx.closePath();
+      ctx.fill();
       
-      // Create a semi-transparent overlay for areas OUTSIDE the printable region
-      ctx.save();
-      
-      // First create a clipping path for the area OUTSIDE the printable region
-      ctx.save();
-      // Create a full canvas rect path
-      ctx.beginPath();
-      ctx.rect(0, 0, canvas.width, canvas.height);
-      // Then use the current path as a clipping mask
-      ctx.clip();
-      
-      // Add the printable area to the path using "evenodd" fill rule
-      // which will effectively create a "hole" in our clipping mask
-      ctx.fill("evenodd");
-      
-      // Now fill the clipped area (everything OUTSIDE the printable region) with semi-transparent black
-      ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
-      ctx.fillRect(0, 0, canvas.width, canvas.height);
-      ctx.restore();
+      // Reset composite operation
+      ctx.globalCompositeOperation = 'source-over';
       
       // Draw a visible border around the printable area
       ctx.strokeStyle = 'rgba(0, 150, 255, 0.8)';
       ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.moveTo(printableCorners[0].x * scaleFactorX, printableCorners[0].y * scaleFactorY);
+      for (let i = 1; i < printableCorners.length; i++) {
+        ctx.lineTo(printableCorners[i].x * scaleFactorX, printableCorners[i].y * scaleFactorY);
+      }
+      ctx.closePath();
       ctx.stroke();
+      ctx.restore();
+    }
+    
+    // Draw resize handles at the corners (on top of everything)
+    if (imageRef.current && image) {
+      const userImageWidth = imageRef.current.width * imageScale;
+      const userImageHeight = imageRef.current.height * imageScale;
+      
+      // Draw handles
+      ctx.save();
+      drawResizeHandles(ctx, imagePosition.x, imagePosition.y, userImageWidth, userImageHeight);
       ctx.restore();
     }
   };
