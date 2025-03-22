@@ -6,6 +6,8 @@ const ImageEditor = () => {
   const [productImage, setProductImage] = useState(null);
   const [printableCorners, setPrintableCorners] = useState([]);
   const [isDragging, setIsDragging] = useState(false);
+  const [isResizing, setIsResizing] = useState(false);
+  const [activeCorner, setActiveCorner] = useState(null);
   const canvasRef = useRef(null);
   const imageRef = useRef(null);
   const productImageRef = useRef(null);
@@ -19,6 +21,10 @@ const ImageEditor = () => {
   const [imagePosition, setImagePosition] = useState({ x: 0, y: 0 });
   const [imageScale, setImageScale] = useState(1);
   const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
+  
+  // Constants for the resize handles
+  const HANDLE_SIZE = 20; // Size of the corner resize handles
+  const CORNERS = ['nw', 'ne', 'se', 'sw']; // Corner positions
 
   useEffect(() => {
     // Set up canvas size based on a fixed aspect ratio
@@ -29,8 +35,13 @@ const ImageEditor = () => {
       canvasElement.height = CANVAS_HEIGHT;
     }
 
-    // Load the product image and printable area corners
-    const productImageUrl = './images/products/canvas16x20.png';
+    // Load the product image and printable area corners - try different path formats
+    // to handle various development and production setups
+    const productImagePaths = [
+      './images/products/canvas16x20.png',
+      '/images/products/canvas16x20.png',
+      process.env.PUBLIC_URL + '/images/products/canvas16x20.png'
+    ];
     const cornersJsonUrl = './images/products/canvas16x20.json';
     
     // Fetch the corners data first
@@ -40,47 +51,62 @@ const ImageEditor = () => {
         console.log("Loaded corners data:", data.corners);
         setPrintableCorners(data.corners);
         
-        // After loading corners, load both images
-        loadImages(productImageUrl, data.corners);
+        // After loading corners, try loading the product image from different paths
+        tryLoadProductImage(productImagePaths, 0, data.corners);
       })
       .catch(error => {
         console.error('Error loading printable area data:', error);
         // Try to load images anyway
-        loadImages(productImageUrl, []);
+        tryLoadProductImage(productImagePaths, 0, []);
       });
   }, []);
 
-  const loadImages = (productImageUrl, corners) => {
-    // Load the product image
+  // Try loading product image from different possible paths
+  const tryLoadProductImage = (paths, index, corners) => {
+    if (index >= paths.length) {
+      console.error("Failed to load product image from any path");
+      // Try to load just the user image with a default positioning
+      loadUserImage(null, corners);
+      return;
+    }
+    
+    const path = paths[index];
+    console.log(`Trying to load product image from path: ${path}`);
+    
     const productImg = new Image();
     productImg.onload = () => {
-      console.log("Product image loaded:", productImageUrl);
+      console.log("Product image loaded successfully from:", path);
       setProductImage(productImg);
       productImageRef.current = productImg;
-      
-      // Use the test image URL (replace with user uploaded image in production)
-      const testImageUrl = 'https://static.dzine.ai/open_product/20250322/54/img2img/1_output_1742650385000203_jrmL0.webp';
-      
-      // Preload the user image
-      const userImg = new Image();
-      userImg.crossOrigin = "Anonymous"; // Enable CORS for the image
-      userImg.onload = () => {
-        console.log("User image loaded");
-        setImage(userImg);
-        imageRef.current = userImg;
-        
-        // Position the image based on corners data
-        positionUserImage(userImg, productImg, corners);
-      };
-      userImg.onerror = (e) => {
-        console.error("Error loading user image:", e);
-      };
-      userImg.src = testImageUrl;
+      loadUserImage(productImg, corners);
     };
-    productImg.onerror = (e) => {
-      console.error("Error loading product image:", e);
+    productImg.onerror = () => {
+      console.warn(`Failed to load product image from: ${path}, trying next path...`);
+      tryLoadProductImage(paths, index + 1, corners);
     };
-    productImg.src = productImageUrl;
+    productImg.src = path;
+  };
+  
+  // Load the user's stylized image
+  const loadUserImage = (productImg, corners) => {
+    // Use the test image URL (replace with user uploaded image in production)
+    const testImageUrl = 'https://static.dzine.ai/open_product/20250322/54/img2img/1_output_1742650385000203_jrmL0.webp';
+    
+    // Preload the user image
+    const userImg = new Image();
+    userImg.crossOrigin = "Anonymous"; // Enable CORS for the image
+    userImg.onload = () => {
+      console.log("User image loaded successfully");
+      setImage(userImg);
+      imageRef.current = userImg;
+      
+      // Position the image based on corners data
+      positionUserImage(userImg, productImg, corners);
+    };
+    userImg.onerror = (e) => {
+      console.error("Error loading user image:", e);
+    };
+    userImg.src = testImageUrl;
   };
 
   const positionUserImage = (userImg, productImg, corners) => {
@@ -142,9 +168,7 @@ const ImageEditor = () => {
     // Clear the canvas
     ctx.clearRect(0, 0, canvas.width, canvas.height);
     
-    // Draw white background
-    ctx.fillStyle = '#ffffff';
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    // Clear to transparent (don't add white background)
     
     // Draw the product image as background if available
     if (productImageRef.current) {
@@ -160,6 +184,18 @@ const ImageEditor = () => {
       ctx.scale(imageScale, imageScale);
       ctx.drawImage(imageRef.current, 0, 0);
       ctx.restore();
+      
+      // Draw resize handles at the corners
+      if (image) {
+        const userImageWidth = imageRef.current.width * imageScale;
+        const userImageHeight = imageRef.current.height * imageScale;
+        
+        // Draw handles
+        ctx.save();
+        // Draw handles
+        drawResizeHandles(ctx, imagePosition.x, imagePosition.y, userImageWidth, userImageHeight);
+        ctx.restore();
+      }
     }
     
     // If we have printable corners data, create the overlay
@@ -177,16 +213,24 @@ const ImageEditor = () => {
       }
       ctx.closePath();
       
-      // Create a semi-transparent overlay for areas outside the printable region
+      // Create a semi-transparent overlay for areas OUTSIDE the printable region
       ctx.save();
-      // Store the current printable area path
+      
+      // First create a clipping path for the area OUTSIDE the printable region
       ctx.save();
-      // Fill everything with semi-transparent black
+      // Create a full canvas rect path
+      ctx.beginPath();
+      ctx.rect(0, 0, canvas.width, canvas.height);
+      // Then use the current path as a clipping mask
+      ctx.clip();
+      
+      // Add the printable area to the path using "evenodd" fill rule
+      // which will effectively create a "hole" in our clipping mask
+      ctx.fill("evenodd");
+      
+      // Now fill the clipped area (everything OUTSIDE the printable region) with semi-transparent black
       ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
       ctx.fillRect(0, 0, canvas.width, canvas.height);
-      // Cut out the printable area
-      ctx.globalCompositeOperation = 'destination-out';
-      ctx.fill();
       ctx.restore();
       
       // Draw a visible border around the printable area
@@ -197,38 +241,144 @@ const ImageEditor = () => {
     }
   };
 
+  // Function to draw resize handles at the corners of the image
+  const drawResizeHandles = (ctx, x, y, width, height) => {
+    const halfHandleSize = HANDLE_SIZE / 2;
+    
+    // Define the positions of the resize handles
+    const handlePositions = {
+      'nw': { x: x - halfHandleSize, y: y - halfHandleSize },
+      'ne': { x: x + width - halfHandleSize, y: y - halfHandleSize },
+      'se': { x: x + width - halfHandleSize, y: y + height - halfHandleSize },
+      'sw': { x: x - halfHandleSize, y: y + height - halfHandleSize }
+    };
+    
+    // Draw each handle
+    CORNERS.forEach(corner => {
+      const position = handlePositions[corner];
+      
+      // Draw the handle
+      ctx.fillStyle = 'rgba(0, 150, 255, 0.8)';
+      ctx.strokeStyle = 'white';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.arc(position.x + halfHandleSize, position.y + halfHandleSize, halfHandleSize, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.stroke();
+    });
+    
+    return handlePositions;
+  };
+  
+  // Helper function to check if a point is inside a circle
+  const isInsideCircle = (x, y, cx, cy, radius) => {
+    const dx = x - cx;
+    const dy = y - cy;
+    return dx * dx + dy * dy <= radius * radius;
+  };
+  
+  // Function to check if mouse is over a resize handle
+  const getResizeHandle = (x, y) => {
+    if (!imageRef.current) return null;
+    
+    const halfHandleSize = HANDLE_SIZE / 2;
+    const userImageWidth = imageRef.current.width * imageScale;
+    const userImageHeight = imageRef.current.height * imageScale;
+    
+    // Define the positions of the resize handles
+    const handlePositions = {
+      'nw': { x: imagePosition.x, y: imagePosition.y },
+      'ne': { x: imagePosition.x + userImageWidth, y: imagePosition.y },
+      'se': { x: imagePosition.x + userImageWidth, y: imagePosition.y + userImageHeight },
+      'sw': { x: imagePosition.x, y: imagePosition.y + userImageHeight }
+    };
+    
+    // Check each handle
+    for (const corner of CORNERS) {
+      const handleCenter = {
+        x: handlePositions[corner].x + (corner.includes('e') ? 0 : 0),
+        y: handlePositions[corner].y + (corner.includes('s') ? 0 : 0)
+      };
+      
+      if (isInsideCircle(x, y, handleCenter.x, handleCenter.y, halfHandleSize + 10)) {
+        return corner;
+      }
+    }
+    
+    return null;
+  };
+
   // Mouse and touch event handlers
   const handleMouseDown = (e) => {
     e.preventDefault();
-    startDrag(e.clientX, e.clientY);
+    const rect = canvasRef.current.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const y = e.clientY - rect.top;
+    
+    // Check if user clicked on a resize handle
+    const handleCorner = getResizeHandle(x, y);
+    
+    if (handleCorner) {
+      // Start resizing
+      setIsResizing(true);
+      setActiveCorner(handleCorner);
+      setDragStart({ x, y });
+    } else {
+      // Start dragging
+      setIsDragging(true);
+      setDragStart({ x, y });
+    }
   };
 
   const handleTouchStart = (e) => {
     if (e.touches.length === 1) {
       e.preventDefault();
-      startDrag(e.touches[0].clientX, e.touches[0].clientY);
+      const rect = canvasRef.current.getBoundingClientRect();
+      const x = e.touches[0].clientX - rect.left;
+      const y = e.touches[0].clientY - rect.top;
+      
+      // Check if user touched a resize handle
+      const handleCorner = getResizeHandle(x, y);
+      
+      if (handleCorner) {
+        // Start resizing
+        setIsResizing(true);
+        setActiveCorner(handleCorner);
+        setDragStart({ x, y });
+      } else {
+        // Start dragging
+        setIsDragging(true);
+        setDragStart({ x, y });
+      }
     }
   };
 
-  const startDrag = (clientX, clientY) => {
-    const rect = canvasRef.current.getBoundingClientRect();
-    const x = clientX - rect.left;
-    const y = clientY - rect.top;
-    
-    setIsDragging(true);
-    setDragStart({ x, y });
-  };
-
   const handleMouseMove = (e) => {
-    if (!isDragging) return;
+    if (!isDragging && !isResizing) return;
     e.preventDefault();
-    moveImage(e.clientX, e.clientY);
+    
+    const clientX = e.clientX;
+    const clientY = e.clientY;
+    
+    if (isDragging) {
+      moveImage(clientX, clientY);
+    } else if (isResizing) {
+      resizeImage(clientX, clientY);
+    }
   };
 
   const handleTouchMove = (e) => {
-    if (!isDragging || e.touches.length !== 1) return;
+    if ((!isDragging && !isResizing) || e.touches.length !== 1) return;
     e.preventDefault();
-    moveImage(e.touches[0].clientX, e.touches[0].clientY);
+    
+    const clientX = e.touches[0].clientX;
+    const clientY = e.touches[0].clientY;
+    
+    if (isDragging) {
+      moveImage(clientX, clientY);
+    } else if (isResizing) {
+      resizeImage(clientX, clientY);
+    }
   };
 
   const moveImage = (clientX, clientY) => {
@@ -246,13 +396,133 @@ const ImageEditor = () => {
     
     setDragStart({ x, y });
   };
+  
+  const resizeImage = (clientX, clientY) => {
+    if (!imageRef.current || !activeCorner) return;
+    
+    const rect = canvasRef.current.getBoundingClientRect();
+    const x = clientX - rect.left;
+    const y = clientY - rect.top;
+    
+    const deltaX = x - dragStart.x;
+    const deltaY = y - dragStart.y;
+    
+    // Original dimensions
+    const originalWidth = imageRef.current.width * imageScale;
+    const originalHeight = imageRef.current.height * imageScale;
+    
+    // Calculate new scale based on the active corner
+    let newScale = imageScale;
+    let newX = imagePosition.x;
+    let newY = imagePosition.y;
+    
+    // Maintain aspect ratio
+    const aspectRatio = imageRef.current.width / imageRef.current.height;
+    
+    // Handle different corners
+    switch (activeCorner) {
+      case 'nw':
+        // Northwest - change position and scale
+        {
+          const widthChange = -deltaX;
+          const heightChange = -deltaY;
+          const scaleChangeX = (originalWidth + widthChange) / imageRef.current.width;
+          const scaleChangeY = (originalHeight + heightChange) / imageRef.current.height;
+          
+          // Use the larger scale change to maintain aspect ratio
+          newScale = Math.max(0.1, Math.min(scaleChangeX, scaleChangeY));
+          
+          // Adjust position to keep the SE corner fixed
+          newX = imagePosition.x + originalWidth - (imageRef.current.width * newScale);
+          newY = imagePosition.y + originalHeight - (imageRef.current.height * newScale);
+        }
+        break;
+      case 'ne':
+        // Northeast - change width and y position
+        {
+          const widthChange = deltaX;
+          const heightChange = -deltaY;
+          const scaleChangeX = (originalWidth + widthChange) / imageRef.current.width;
+          const scaleChangeY = (originalHeight + heightChange) / imageRef.current.height;
+          
+          // Use the larger scale change to maintain aspect ratio
+          newScale = Math.max(0.1, Math.min(scaleChangeX, scaleChangeY));
+          
+          // Adjust y position to keep the SW corner fixed
+          newY = imagePosition.y + originalHeight - (imageRef.current.height * newScale);
+        }
+        break;
+      case 'se':
+        // Southeast - just change scale
+        {
+          const widthChange = deltaX;
+          const heightChange = deltaY;
+          const scaleChangeX = (originalWidth + widthChange) / imageRef.current.width;
+          const scaleChangeY = (originalHeight + heightChange) / imageRef.current.height;
+          
+          // Use the smaller scale change to maintain aspect ratio
+          newScale = Math.max(0.1, Math.min(scaleChangeX, scaleChangeY));
+        }
+        break;
+      case 'sw':
+        // Southwest - change x position and height
+        {
+          const widthChange = -deltaX;
+          const heightChange = deltaY;
+          const scaleChangeX = (originalWidth + widthChange) / imageRef.current.width;
+          const scaleChangeY = (originalHeight + heightChange) / imageRef.current.height;
+          
+          // Use the larger scale change to maintain aspect ratio
+          newScale = Math.max(0.1, Math.min(scaleChangeX, scaleChangeY));
+          
+          // Adjust x position to keep the NE corner fixed
+          newX = imagePosition.x + originalWidth - (imageRef.current.width * newScale);
+        }
+        break;
+      default:
+        break;
+    }
+    
+    setImageScale(newScale);
+    setImagePosition({ x: newX, y: newY });
+    setDragStart({ x, y });
+  };
 
   const handleMouseUp = () => {
     setIsDragging(false);
+    setIsResizing(false);
+    setActiveCorner(null);
   };
 
   const handleTouchEnd = () => {
     setIsDragging(false);
+    setIsResizing(false);
+    setActiveCorner(null);
+  };
+  
+  // Function to determine the cursor style based on the current interaction state
+  const getCursorStyle = () => {
+    if (isDragging) {
+      return 'grabbing';
+    }
+    
+    if (isResizing) {
+      switch (activeCorner) {
+        case 'nw':
+        case 'se':
+          return 'nwse-resize';
+        case 'ne':
+        case 'sw':
+          return 'nesw-resize';
+        default:
+          return 'pointer';
+      }
+    }
+    
+    // For dynamic cursor on hover - not implementing this yet as it requires
+    // tracking mouse position in real-time, which is a bit more complex
+    
+    return 'grab';
   };
 
   const handleWheel = (e) => {
@@ -368,7 +638,9 @@ const ImageEditor = () => {
           onTouchMove={handleTouchMove}
           onTouchEnd={handleTouchEnd}
           onWheel={handleWheel}
-          style={{ cursor: isDragging ? 'grabbing' : 'grab' }}
+          style={{ 
+            cursor: getCursorStyle() 
+          }}
         />
       </div>
       
