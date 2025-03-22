@@ -35,22 +35,27 @@ function StyleTest() {
       }
       
       // Fetch the style list
+      console.log('Fetching style list with API key:', apiKey.substring(0, 5) + '...');
+      
       const response = await fetch('https://papi.dzine.ai/openapi/v1/style/list', {
         method: 'GET',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': apiKey
+          'Authorization': apiKey.trim() // Make sure there's no whitespace
         }
       });
       
       if (!response.ok) {
+        console.error('Style list fetch failed:', response.status, response.statusText);
         throw new Error(`Failed to fetch style list: ${response.status} ${response.statusText}`);
       }
       
       const data = await response.json();
+      console.log('Style list API response code:', data.code);
       
       if (data.code === 200 && data.data && data.data.list) {
         const styles = data.data.list;
+        console.log(`Received ${styles.length} styles from API`);
         setStyleList(styles);
         
         // Group styles by base_model
@@ -68,10 +73,14 @@ function StyleTest() {
           grouped[model].push(style);
         });
         
+        console.log('Found base models:', Array.from(models));
+        console.log('Grouped styles:', Object.keys(grouped).map(key => `${key}: ${grouped[key].length} styles`));
+        
         setGroupedStyles(grouped);
         setBaseModels(Array.from(models).sort());
       } else {
-        throw new Error('Invalid API response format');
+        console.error('Invalid style list API response structure:', data);
+        throw new Error(`Invalid style list API response: ${JSON.stringify(data)}`);
       }
     } catch (error) {
       console.error('Error fetching style list:', error);
@@ -221,7 +230,7 @@ function StyleTest() {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
-            'Authorization': apiKey
+            'Authorization': apiKey.trim() // Make sure there's no whitespace
           },
           body: JSON.stringify({
             prompt: "Transform this image with the selected style",
@@ -244,11 +253,15 @@ function StyleTest() {
         
         const data = await response.json();
         
+        // Debug: Log the full API response
+        console.log('API Response:', JSON.stringify(data, null, 2));
+        
         if (data.code === 200 && data.data && data.data.task_id) {
           // Poll for task completion
           await pollTaskProgress(data.data.task_id);
         } else {
-          throw new Error('Invalid API response format');
+          console.error('Invalid API response structure:', data);
+          throw new Error(`Invalid API response format: ${JSON.stringify(data)}`);
         }
       } catch (error) {
         console.error('Error processing image:', error);
@@ -296,7 +309,7 @@ function StyleTest() {
           method: 'GET',
           headers: {
             'Content-Type': 'application/json',
-            'Authorization': apiKey
+            'Authorization': apiKey.trim() // Make sure there's no whitespace
           }
         });
         
@@ -306,11 +319,17 @@ function StyleTest() {
         
         const data = await response.json();
         
+        // Debug: Log the task progress response
+        console.log('Task Progress Response:', JSON.stringify(data, null, 2));
+        
         if (data.code === 200 && data.data) {
           console.log('Task status:', data.data.status);
           
           if (data.data.status === 'success' || data.data.status === 'succeeded') {
             isComplete = true;
+            
+            // Debug: Log the generate_result_slots
+            console.log('Result slots:', data.data.generate_result_slots);
             
             // Get the first non-empty image URL from generate_result_slots
             const resultUrl = data.data.generate_result_slots.find(url => url && url.trim() !== '');
@@ -318,12 +337,19 @@ function StyleTest() {
             if (resultUrl) {
               setResult({ url: resultUrl });
             } else {
+              console.error('No non-empty URL found in generate_result_slots:', data.data.generate_result_slots);
               throw new Error('No result image found');
             }
           } else if (data.data.status === 'failed') {
+            console.error('Task failed:', data.data);
             throw new Error(`Task failed: ${data.data.error_reason || 'Unknown error'}`);
+          } else {
+            // Still processing, continue polling
+            console.log(`Task in progress: ${data.data.status}, attempt ${attempts}/${maxAttempts}`);
           }
-          // Still processing, continue polling
+        } else {
+          console.error('Invalid task progress response structure:', data);
+          throw new Error(`Invalid task progress format: ${JSON.stringify(data)}`);
         }
       }
       
