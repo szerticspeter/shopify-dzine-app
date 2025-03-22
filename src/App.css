@@ -48,6 +48,29 @@ body {
     line-height: 1.4;
   }
   
+  .test-links {
+    margin-top: 15px;
+  }
+  
+  .test-link {
+    display: inline-block;
+    padding: 8px 16px;
+    background-color: #6366f1;
+    color: white;
+    text-decoration: none;
+    border-radius: 6px;
+    font-size: 14px;
+    font-weight: 500;
+    transition: all 0.2s ease;
+    margin: 5px;
+  }
+  
+  .test-link:hover {
+    background-color: #4f46e5;
+    transform: translateY(-2px);
+    box-shadow: 0 4px 8px rgba(99, 102, 241, 0.3);
+  }
+  
   .product-samples {
     margin: 40px 0 60px;
     padding: 20px;

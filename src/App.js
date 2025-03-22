@@ -399,6 +399,9 @@ function App() {
             <header className="App-header">
               <h1>Give a Special Gift</h1>
               <p className="subtitle">Order a stylized image of your loved ones on premium products</p>
+              <div className="test-links">
+                <a href="/editor" className="test-link">Test Editor Tool →</a>
+              </div>
             </header>
             
             <main>
