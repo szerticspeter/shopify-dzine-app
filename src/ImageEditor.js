@@ -243,26 +243,42 @@ const ImageEditor = () => {
       ctx.restore();
     }
     
-    // If we have printable corners data, just draw the printable area border
-    // (overlay temporarily removed for debugging)
+    // Add overlay around the printable area (not on it)
     if (printableCorners.length === 4 && productImageRef.current) {
-      console.log("Drawing printable area border only (overlay disabled)");
-      // Create a polygon path for the printable area
+      console.log("Drawing non-printable area overlay");
+      
       const scaleFactorX = canvas.width / productImageRef.current.width;
       const scaleFactorY = canvas.height / productImageRef.current.height;
       
-      // Draw a visible border around the printable area
+      // Create clip path for the printable area
       ctx.save();
-      ctx.strokeStyle = 'rgba(0, 150, 255, 0.8)';
-      ctx.lineWidth = 2;
+      
+      // First define the printable area path
       ctx.beginPath();
       ctx.moveTo(printableCorners[0].x * scaleFactorX, printableCorners[0].y * scaleFactorY);
       for (let i = 1; i < printableCorners.length; i++) {
         ctx.lineTo(printableCorners[i].x * scaleFactorX, printableCorners[i].y * scaleFactorY);
       }
       ctx.closePath();
-      ctx.stroke();
+      
+      // Save the current context state with the printable area path
+      ctx.save();
+      
+      // Create a clipping path for everything OUTSIDE the printable area
+      // by creating a path for the entire canvas and using "evenodd" fill rule
+      ctx.beginPath();
+      ctx.rect(0, 0, canvas.width, canvas.height);
+      ctx.clip("evenodd");
+      
+      // Now draw a semi-transparent overlay that only appears OUTSIDE the printable area
+      ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      
+      // Restore the context
       ctx.restore();
+      ctx.restore();
+      
+      // No blue border around the printable area (as requested)
     }
     
     // Draw resize handles at the corners (on top of everything)
