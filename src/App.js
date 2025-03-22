@@ -155,15 +155,6 @@ function App() {
       setIsProcessing(true);
       
       try {
-        // Get API key from environment variables
-        const apiKey = process.env.REACT_APP_DZINE_API_KEY;
-        
-        // Check if we have an API key, otherwise directly fall back to mock
-        if (!apiKey || apiKey === 'your_api_key_here') {
-          console.log('No valid API key found, falling back to mock response');
-          throw new Error('No valid API key configured');
-        }
-        
         // Convert image to base64
         const base64Image = await fileToBase64(uploadedImage);
         
@@ -176,44 +167,50 @@ function App() {
         
         // Get the actual API style code
         const apiStyleCode = styleCodeMapping[styleCode] || styleCode;
-        const response = await fetch('https://papi.dzine.ai/openapi/v1/create_task_img2img', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': apiKey
-          },
-          body: JSON.stringify({
-            prompt: "Transform this image with the selected style",
-            style_code: apiStyleCode,
-            style_intensity: 0.9,
-            structure_match: 0.7,
-            quality_mode: 1,
-            generate_slots: [1, 0, 0, 0],
-            images: [
-              {
-                base64_data: base64Image
-              }
-            ]
-          })
-        });
+        console.log(`Sending img2img request with style_code: ${apiStyleCode}`);
         
-        if (!response.ok) {
-          console.error('API response not OK:', response.status, response.statusText);
-          throw new Error(`Failed to create styling task: ${response.status} ${response.statusText}`);
-        }
+        // Prepare request body
+        const requestBody = {
+          prompt: "Transform this image with the selected style",
+          style_code: apiStyleCode,
+          style_intensity: 0.9,
+          structure_match: 0.7,
+          quality_mode: 1,
+          generate_slots: [1, 0, 0, 0],
+          images: [
+            {
+              base64_data: base64Image.replace(/^data:image\/[a-z]+;base64,/, '')
+            }
+          ]
+        };
         
-        const data = await response.json();
-        console.log('API response:', data);
+        // Make the API call with retries
+        const data = await makeApiCall(
+          'https://papi.dzine.ai/openapi/v1/create_task_img2img',
+          'POST',
+          requestBody,
+          5 // More retries for this important call
+        );
+        
+        // Debug: Log the full API response
+        console.log('API Response:', JSON.stringify(data, null, 2));
         
         if (data.code === 200 && data.data && data.data.task_id) {
           // Poll for task completion
           await pollTaskProgress(data.data.task_id);
+        } else if (data.code === 108005) {
+          // Handle the specific style invalid error
+          throw new Error(`Style not compatible with img2img. Try a different style.`);
         } else {
-          throw new Error('Invalid API response format');
+          console.error('Invalid API response structure:', data);
+          throw new Error(`Invalid API response format: ${JSON.stringify(data)}`);
         }
       } catch (error) {
         console.error('Error processing image:', error);
         setIsProcessing(false);
+        
+        // Show an alert to the user
+        alert(`Error: ${error.message}. Using sample image instead.`);
         
         // Fallback to mock if the API fails
         if (selectedStyleObj.stylizedImage) {
@@ -233,64 +230,157 @@ function App() {
     });
   };
   
+  // Generic function for making API calls with retry logic (copied from StyleTest.js)
+  const makeApiCall = async (url, method = 'GET', body = null, retries = 3) => {
+    // Get API key
+    const apiKey = process.env.REACT_APP_DZINE_API_KEY;
+    
+    if (!apiKey || apiKey === 'your_api_key_here') {
+      throw new Error('No valid API key configured. Please set up your REACT_APP_DZINE_API_KEY');
+    }
+    
+    let lastError = null;
+    let delay = 1000;
+    
+    for (let attempt = 0; attempt < retries; attempt++) {
+      try {
+        if (attempt > 0) {
+          console.log(`Retry attempt ${attempt + 1}/${retries} for ${url}`);
+        }
+        
+        const response = await fetch(url, {
+          method,
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': apiKey.trim(),
+            'Cache-Control': 'no-cache',
+            'Pragma': 'no-cache'
+          },
+          ...(body && { body: JSON.stringify(body) })
+        });
+        
+        if (!response.ok) {
+          // Log the response text for debugging
+          const responseText = await response.text();
+          console.error('Error response text:', responseText);
+          throw new Error(`API call failed: ${response.status} ${response.statusText}`);
+        }
+        
+        const responseText = await response.clone().text();
+        console.log('Raw response:', responseText);
+        return await response.json();
+      } catch (error) {
+        console.error(`API call attempt ${attempt + 1} failed:`, error);
+        lastError = error;
+        
+        if (attempt < retries - 1) {
+          await new Promise(resolve => setTimeout(resolve, delay));
+          delay *= 2; // Exponential backoff
+        }
+      }
+    }
+    
+    // Provide more specific error message for common issues
+    if (lastError instanceof TypeError && lastError.message.includes('fetch')) {
+      throw new Error('Network connection issue. Please check your internet connection and try again.');
+    } else if (lastError instanceof TypeError && lastError.message.includes('JSON')) {
+      throw new Error('Invalid response from server. The API may be temporarily unavailable.');
+    } else {
+      throw lastError || new Error('API call failed after all retries');
+    }
+  };
+
   // Helper function to poll for task progress
   const pollTaskProgress = async (taskId) => {
     try {
       let isComplete = false;
       let attempts = 0;
-      const maxAttempts = 30; // Maximum polling attempts
+      const maxAttempts = 60; // Maximum polling attempts (2 minutes)
+      const statusMessages = {
+        0: 'Starting task...',
+        5: 'Processing your image...',
+        15: 'Applying style transformation...',
+        30: 'Almost there...'
+      };
       
-      // Get API key from environment variables
-      const apiKey = process.env.REACT_APP_DZINE_API_KEY;
+      console.log(`Starting task polling, task ID: ${taskId}, max attempts: ${maxAttempts}`);
       
-      // Check if we have an API key
-      if (!apiKey || apiKey === 'your_api_key_here') {
-        console.error('No valid API key for polling task progress');
-        throw new Error('No valid API key configured');
-      }
+      // Simple elapsed time tracking
+      const startTime = Date.now();
       
       while (!isComplete && attempts < maxAttempts) {
         attempts++;
         
+        // Show status messages at certain intervals
+        if (statusMessages[attempts]) {
+          console.log(statusMessages[attempts]);
+        }
+        
         // Wait 2 seconds between polls
         await new Promise(resolve => setTimeout(resolve, 2000));
         
-        // Check task progress
-        const response = await fetch(`https://papi.dzine.ai/openapi/v1/get_task_progress/${taskId}`, {
-          method: 'GET',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': apiKey
-          }
-        });
+        // Check task progress using our centralized API call function
+        const data = await makeApiCall(
+          `https://papi.dzine.ai/openapi/v1/get_task_progress/${taskId}`,
+          'GET',
+          null,
+          3 // 3 retries for status check
+        );
         
-        if (!response.ok) {
-          throw new Error(`Failed to check task progress: ${response.status} ${response.statusText}`);
+        // Debug: Log the task progress response (but not on every attempt to avoid console spam)
+        if (attempts % 5 === 0 || attempts === 1) {
+          console.log(`Task Progress (Attempt ${attempts}/${maxAttempts}):`, JSON.stringify(data, null, 2));
         }
         
-        const data = await response.json();
-        
         if (data.code === 200 && data.data) {
-          if (data.data.status === 'success' || data.data.status === 'succeeded') {
+          const status = data.data.status;
+          console.log(`Task status (${attempts}/${maxAttempts}):`, status);
+          
+          if (status === 'success' || status === 'succeeded' || status === 'succeed') {
             isComplete = true;
+            
+            // Debug: Log the generate_result_slots
+            console.log('Result slots:', data.data.generate_result_slots);
+            
+            // Check if the generate_result_slots array exists and has contents
+            if (!data.data.generate_result_slots || !Array.isArray(data.data.generate_result_slots) || data.data.generate_result_slots.length === 0) {
+              console.error('Missing or empty generate_result_slots array in response:', data.data);
+              throw new Error('The API returned success but did not provide any result images. Try again.');
+            }
             
             // Get the first non-empty image URL from generate_result_slots
             const resultUrl = data.data.generate_result_slots.find(url => url && url.trim() !== '');
             
             if (resultUrl) {
-              setResult({ url: resultUrl });
+              // Verify that this URL is valid before proceeding
+              try {
+                new URL(resultUrl); // This will throw if the URL is invalid
+                setResult({ url: resultUrl });
+                console.log('Successfully retrieved result image URL:', resultUrl);
+              } catch (e) {
+                console.error('Invalid URL format in result:', resultUrl);
+                throw new Error('The API returned an invalid image URL. Please try again.');
+              }
             } else {
-              throw new Error('No result image found');
+              console.error('No non-empty URL found in generate_result_slots:', data.data.generate_result_slots);
+              throw new Error('No result image found in API response. The transformation might have failed.');
             }
-          } else if (data.data.status === 'failed') {
+          } else if (status === 'failed') {
+            console.error('Task failed:', data.data);
             throw new Error(`Task failed: ${data.data.error_reason || 'Unknown error'}`);
+          } else {
+            // Still processing, continue polling
+            console.log(`Task in progress: ${status}, attempt ${attempts}/${maxAttempts}`);
           }
-          // Still processing, continue polling
+        } else {
+          console.error('Invalid task progress response structure:', data);
+          throw new Error(`Invalid task progress format: ${JSON.stringify(data)}`);
         }
       }
       
       if (!isComplete) {
-        throw new Error('Task processing timed out');
+        const timeoutMinutes = Math.round((maxAttempts * 2) / 60);
+        throw new Error(`Task processing timed out after ${timeoutMinutes} minutes. Please try again or try a different style.`);
       }
     } catch (error) {
       console.error('Error polling task progress:', error);

@@ -291,7 +291,7 @@ function StyleTest() {
           generate_slots: [1, 0, 0, 0],
           images: [
             {
-              base64_data: base64Image
+              base64_data: base64Image.replace(/^data:image\/[a-z]+;base64,/, '')
             }
           ]
         };
