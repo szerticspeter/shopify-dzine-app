@@ -787,6 +787,29 @@ body {
   max-width: 700px;
 }
 
+.error-message p {
+  margin-bottom: 15px;
+}
+
+.retry-button {
+  padding: 10px 16px;
+  background: linear-gradient(135deg, #8b5cf6 0%, #6366f1 100%);
+  color: white;
+  border: none;
+  border-radius: 6px;
+  font-size: 0.9rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  box-shadow: 0 3px 10px rgba(139, 92, 246, 0.3);
+  margin-top: 5px;
+}
+
+.retry-button:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 5px 15px rgba(139, 92, 246, 0.4);
+}
+
 .result-section-test {
   margin: 60px 0;
   position: relative;

@@ -306,8 +306,8 @@ function StyleTest() {
     try {
       let isComplete = false;
       let attempts = 0;
-      // Increase timeout for S base model which might take longer
-      const maxAttempts = baseModel === 'S' ? 60 : 30; // More attempts for S model (2 mins vs 1 min)
+      // Greatly increase timeout for S base model which can take much longer
+      const maxAttempts = baseModel === 'S' ? 600 : 30; // Much longer timeout for S model (20 mins vs 1 min)
       let statusMessageShown = null;
       
       console.log(`Starting task polling for ${baseModel} model, task ID: ${taskId}, max attempts: ${maxAttempts}`);
@@ -322,15 +322,36 @@ function StyleTest() {
       
       // Function to show status message to user
       const updateStatusMessage = (status, attempt) => {
-        const progressPct = Math.round((attempt/maxAttempts) * 100);
-        const message = `Processing image (${status})... ${progressPct}%`;
+        // If we're in a long timeout, we'll adjust the progress calculation to make it more informative
+        let progressPct;
+        let timeMessage;
+        
+        if (baseModel === 'S' && maxAttempts > 100) {
+          // For very long timeouts, make the first 20% of the progress bar move faster
+          // to give a sense of progress, then slow down for the remaining time
+          if (attempt <= maxAttempts * 0.2) {
+            // First 20% of attempts maps to first 50% of progress bar
+            progressPct = Math.round((attempt / (maxAttempts * 0.2)) * 50);
+            timeMessage = `(${Math.round(attempt * 2)} seconds)`;
+          } else {
+            // Remaining 80% of attempts maps to last 50% of progress bar
+            progressPct = Math.round(50 + ((attempt - (maxAttempts * 0.2)) / (maxAttempts * 0.8)) * 50);
+            timeMessage = `(${Math.round(attempt * 2)} seconds)`;
+          }
+        } else {
+          // Standard progress calculation for shorter timeouts
+          progressPct = Math.round((attempt/maxAttempts) * 100);
+          timeMessage = `${progressPct}%`;
+        }
+        
+        const message = `Processing image (${status})... ${timeMessage}`;
         if (message !== statusMessageShown) {
           statusMessageShown = message;
           // Update the status message and progress states
           setStatusMessage(message);
           setProgress(progressPct);
           // Also update document title
-          document.title = `Processing: ${progressPct}%`;
+          document.title = `Processing: ${timeMessage}`;
         }
       };
       
@@ -374,12 +395,25 @@ function StyleTest() {
             // Debug: Log the generate_result_slots
             console.log('Result slots:', data.data.generate_result_slots);
             
+            // Check if the generate_result_slots array exists and has contents
+            if (!data.data.generate_result_slots || !Array.isArray(data.data.generate_result_slots) || data.data.generate_result_slots.length === 0) {
+              console.error('Missing or empty generate_result_slots array in response:', data.data);
+              throw new Error('The API returned success but did not provide any result images. Try again.');
+            }
+            
             // Get the first non-empty image URL from generate_result_slots
             const resultUrl = data.data.generate_result_slots.find(url => url && url.trim() !== '');
             
             if (resultUrl) {
-              setResult({ url: resultUrl });
-              console.log('Successfully retrieved result image URL:', resultUrl);
+              // Verify that this URL is valid before proceeding
+              try {
+                new URL(resultUrl); // This will throw if the URL is invalid
+                setResult({ url: resultUrl });
+                console.log('Successfully retrieved result image URL:', resultUrl);
+              } catch (e) {
+                console.error('Invalid URL format in result:', resultUrl);
+                throw new Error('The API returned an invalid image URL. Please try again.');
+              }
             } else {
               console.error('No non-empty URL found in generate_result_slots:', data.data.generate_result_slots);
               throw new Error('No result image found in API response. The transformation might have failed.');
@@ -398,7 +432,8 @@ function StyleTest() {
       }
       
       if (!isComplete) {
-        throw new Error(`Task processing timed out after ${maxAttempts * 2} seconds. The S base model can sometimes take longer than our timeout period. Try again or try a different style.`);
+        const timeoutMinutes = Math.round((maxAttempts * 2) / 60);
+        throw new Error(`Task processing timed out after ${timeoutMinutes} minutes. This might be due to API issues or high server load. Please try again or try a different style from the same base model.`);
       }
     } catch (error) {
       console.error('Error polling task progress:', error);
@@ -544,7 +579,17 @@ function StyleTest() {
         
         {error && uploadedImage && (
           <div className="error-message">
-            {error}
+            <p>{error}</p>
+            {error.includes('timed out') && selectedStyle && (
+              <button 
+                onClick={() => applyStyle(selectedStyle, groupedStyles[Object.keys(groupedStyles).find(model => 
+                  groupedStyles[model].some(style => style.style_code === selectedStyle)
+                )]?.find(style => style.style_code === selectedStyle)?.base_model || 'S')}
+                className="retry-button"
+              >
+                Retry with Same Style
+              </button>
+            )}
           </div>
         )}
         
