@@ -13,7 +13,7 @@ const ImageEditor = () => {
 
   // Canvas dimensions - maintain the product image aspect ratio
   const CANVAS_WIDTH = 800;
-  let CANVAS_HEIGHT = 800; // Will be calculated based on the product image ratio
+  let CANVAS_HEIGHT = 800; // Will be dynamically updated
 
   // Image position and scale
   const [imagePosition, setImagePosition] = useState({ x: 0, y: 0 });
@@ -21,29 +21,42 @@ const ImageEditor = () => {
   const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
 
   useEffect(() => {
+    // Set up canvas size based on a fixed aspect ratio
+    const canvasElement = canvasRef.current;
+    if (canvasElement) {
+      CANVAS_HEIGHT = CANVAS_WIDTH * (1066 / 1000); // Approximate ratio for canvas16x20
+      canvasElement.width = CANVAS_WIDTH;
+      canvasElement.height = CANVAS_HEIGHT;
+    }
+
     // Load the product image and printable area corners
-    const productImageUrl = '/images/products/canvas16x20.png';
-    const cornersJsonUrl = '/images/products/canvas16x20.json';
+    const productImageUrl = './images/products/canvas16x20.png';
+    const cornersJsonUrl = './images/products/canvas16x20.json';
     
-    // Fetch the corners data
+    // Fetch the corners data first
     fetch(cornersJsonUrl)
       .then(response => response.json())
       .then(data => {
+        console.log("Loaded corners data:", data.corners);
         setPrintableCorners(data.corners);
+        
+        // After loading corners, load both images
+        loadImages(productImageUrl, data.corners);
       })
       .catch(error => {
         console.error('Error loading printable area data:', error);
+        // Try to load images anyway
+        loadImages(productImageUrl, []);
       });
-    
+  }, []);
+
+  const loadImages = (productImageUrl, corners) => {
     // Load the product image
     const productImg = new Image();
-    productImg.src = productImageUrl;
     productImg.onload = () => {
+      console.log("Product image loaded:", productImageUrl);
       setProductImage(productImg);
       productImageRef.current = productImg;
-      
-      // Calculate canvas height based on product image aspect ratio
-      CANVAS_HEIGHT = CANVAS_WIDTH * (productImg.height / productImg.width);
       
       // Use the test image URL (replace with user uploaded image in production)
       const testImageUrl = 'https://static.dzine.ai/open_product/20250322/54/img2img/1_output_1742650385000203_jrmL0.webp';
@@ -51,92 +64,110 @@ const ImageEditor = () => {
       // Preload the user image
       const userImg = new Image();
       userImg.crossOrigin = "Anonymous"; // Enable CORS for the image
-      userImg.src = testImageUrl;
       userImg.onload = () => {
+        console.log("User image loaded");
         setImage(userImg);
         imageRef.current = userImg;
         
-        // Set initial scale to fit within the printable area (if we have that data)
-        if (printableCorners.length === 4) {
-          const printableWidth = Math.abs(printableCorners[1].x - printableCorners[0].x);
-          const printableHeight = Math.abs(printableCorners[3].y - printableCorners[0].y);
-          
-          // Calculate the scale factor for product image to canvas
-          const scaleFactorX = CANVAS_WIDTH / productImg.width;
-          const scaleFactorY = CANVAS_HEIGHT / productImg.height;
-          
-          // Calculate the printable area dimensions on the canvas
-          const canvasPrintableWidth = printableWidth * scaleFactorX;
-          const canvasPrintableHeight = printableHeight * scaleFactorY;
-          
-          // Calculate the center of the printable area on the canvas
-          const centerX = (printableCorners[0].x + printableCorners[1].x) / 2 * scaleFactorX;
-          const centerY = (printableCorners[0].y + printableCorners[3].y) / 2 * scaleFactorY;
-          
-          // Calculate scale to fit the user image inside the printable area
-          const scaleX = canvasPrintableWidth / userImg.width;
-          const scaleY = canvasPrintableHeight / userImg.height;
-          const scale = Math.min(scaleX, scaleY) * 0.9; // 90% of the printable area
-          
-          setImageScale(scale);
-          
-          // Center the image in the printable area
-          setImagePosition({
-            x: centerX - (userImg.width * scale / 2),
-            y: centerY - (userImg.height * scale / 2)
-          });
-        } else {
-          // Default positioning if we don't have printable area data
-          setImagePosition({
-            x: (CANVAS_WIDTH - userImg.width) / 2,
-            y: (CANVAS_HEIGHT - userImg.height) / 2
-          });
-          
-          // Set initial scale to fit the canvas
-          const scaleX = CANVAS_WIDTH / userImg.width;
-          const scaleY = CANVAS_HEIGHT / userImg.height;
-          const scale = Math.min(scaleX, scaleY) * 0.8;
-          setImageScale(scale);
-        }
-        
-        drawCanvas();
+        // Position the image based on corners data
+        positionUserImage(userImg, productImg, corners);
       };
+      userImg.onerror = (e) => {
+        console.error("Error loading user image:", e);
+      };
+      userImg.src = testImageUrl;
     };
-  }, []);
+    productImg.onerror = (e) => {
+      console.error("Error loading product image:", e);
+    };
+    productImg.src = productImageUrl;
+  };
+
+  const positionUserImage = (userImg, productImg, corners) => {
+    if (corners && corners.length === 4) {
+      // Calculate the printable area dimensions and center
+      const printableWidth = Math.abs(corners[1].x - corners[0].x);
+      const printableHeight = Math.abs(corners[3].y - corners[0].y);
+      
+      // Calculate the scale factor for product image to canvas
+      const scaleFactorX = CANVAS_WIDTH / productImg.width;
+      const scaleFactorY = CANVAS_HEIGHT / productImg.height;
+      
+      // Calculate the printable area dimensions on the canvas
+      const canvasPrintableWidth = printableWidth * scaleFactorX;
+      const canvasPrintableHeight = printableHeight * scaleFactorY;
+      
+      // Calculate the center of the printable area on the canvas
+      const centerX = (corners[0].x + corners[1].x) / 2 * scaleFactorX;
+      const centerY = (corners[0].y + corners[3].y) / 2 * scaleFactorY;
+      
+      // Calculate scale to fit the user image inside the printable area
+      const scaleX = canvasPrintableWidth / userImg.width;
+      const scaleY = canvasPrintableHeight / userImg.height;
+      const scale = Math.min(scaleX, scaleY) * 0.9; // 90% of the printable area
+      
+      setImageScale(scale);
+      
+      // Center the image in the printable area
+      setImagePosition({
+        x: centerX - (userImg.width * scale / 2),
+        y: centerY - (userImg.height * scale / 2)
+      });
+    } else {
+      // Default positioning if we don't have printable area data
+      setImagePosition({
+        x: (CANVAS_WIDTH - userImg.width) / 2,
+        y: (CANVAS_HEIGHT - userImg.height) / 2
+      });
+      
+      // Set initial scale to fit the canvas
+      const scaleX = CANVAS_WIDTH / userImg.width;
+      const scaleY = CANVAS_HEIGHT / userImg.height;
+      const scale = Math.min(scaleX, scaleY) * 0.8;
+      setImageScale(scale);
+    }
+  };
 
   useEffect(() => {
     // Redraw canvas when relevant states change
-    if (image && productImage && printableCorners.length === 4) {
-      drawCanvas();
-    }
+    drawCanvas();
   }, [imagePosition, imageScale, image, productImage, printableCorners]);
 
   const drawCanvas = () => {
     const canvas = canvasRef.current;
-    if (!canvas || !imageRef.current || !productImageRef.current) return;
+    if (!canvas) return;
     
     const ctx = canvas.getContext('2d');
     
     // Clear the canvas
     ctx.clearRect(0, 0, canvas.width, canvas.height);
     
-    // Draw the product image as background
-    ctx.drawImage(productImageRef.current, 0, 0, canvas.width, canvas.height);
+    // Draw white background
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
     
-    // If we have printable corners data, draw the user image and overlay
-    if (printableCorners.length === 4) {
-      // Create a polygon path for the printable area
-      const scaleFactorX = canvas.width / productImageRef.current.width;
-      const scaleFactorY = canvas.height / productImageRef.current.height;
-      
-      ctx.save();
-      
-      // Draw the user image at the current position and scale
+    // Draw the product image as background if available
+    if (productImageRef.current) {
+      console.log("Drawing product image");
+      ctx.drawImage(productImageRef.current, 0, 0, canvas.width, canvas.height);
+    }
+    
+    // Draw the user image if available
+    if (imageRef.current) {
+      console.log("Drawing user image");
       ctx.save();
       ctx.translate(imagePosition.x, imagePosition.y);
       ctx.scale(imageScale, imageScale);
       ctx.drawImage(imageRef.current, 0, 0);
       ctx.restore();
+    }
+    
+    // If we have printable corners data, create the overlay
+    if (printableCorners.length === 4 && productImageRef.current) {
+      console.log("Drawing printable area overlay");
+      // Create a polygon path for the printable area
+      const scaleFactorX = canvas.width / productImageRef.current.width;
+      const scaleFactorY = canvas.height / productImageRef.current.height;
       
       // Create a path for the printable area
       ctx.beginPath();
@@ -146,21 +177,14 @@ const ImageEditor = () => {
       }
       ctx.closePath();
       
-      // Everything outside this path will be grayed out
-      ctx.save();
-      ctx.globalCompositeOperation = 'destination-out';
-      ctx.fill();
-      ctx.restore();
-      
       // Create a semi-transparent overlay for areas outside the printable region
       ctx.save();
-      ctx.globalCompositeOperation = 'source-over';
+      // Store the current printable area path
+      ctx.save();
+      // Fill everything with semi-transparent black
       ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
       ctx.fillRect(0, 0, canvas.width, canvas.height);
-      ctx.restore();
-      
-      // Cut out the printable area from the overlay
-      ctx.save();
+      // Cut out the printable area
       ctx.globalCompositeOperation = 'destination-out';
       ctx.fill();
       ctx.restore();
@@ -169,14 +193,6 @@ const ImageEditor = () => {
       ctx.strokeStyle = 'rgba(0, 150, 255, 0.8)';
       ctx.lineWidth = 2;
       ctx.stroke();
-      
-      ctx.restore();
-    } else {
-      // Fallback if we don't have printable area data
-      ctx.save();
-      ctx.translate(imagePosition.x, imagePosition.y);
-      ctx.scale(imageScale, imageScale);
-      ctx.drawImage(imageRef.current, 0, 0);
       ctx.restore();
     }
   };
