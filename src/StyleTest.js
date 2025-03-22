@@ -53,9 +53,14 @@ function StyleTest() {
         });
         
         if (!response.ok) {
+          // Log the response text for debugging
+          const responseText = await response.text();
+          console.error('Error response text:', responseText);
           throw new Error(`API call failed: ${response.status} ${response.statusText}`);
         }
         
+        const responseText = await response.clone().text();
+        console.log('Raw response:', responseText);
         return await response.json();
       } catch (error) {
         console.error(`API call attempt ${attempt + 1} failed:`, error);
@@ -338,7 +343,7 @@ function StyleTest() {
       let isComplete = false;
       let attempts = 0;
       // Greatly increase timeout for S base model which can take much longer
-      const maxAttempts = baseModel === 'S' ? 600 : 30; // Much longer timeout for S model (20 mins vs 1 min)
+      const maxAttempts = baseModel === 'S' ? 600 : 60; // Much longer timeout for S model (20 mins vs 2 min)
       let statusMessageShown = null;
       
       console.log(`Starting task polling for ${baseModel} model, task ID: ${taskId}, max attempts: ${maxAttempts}`);
@@ -405,7 +410,7 @@ function StyleTest() {
           // Update the user with progress
           updateStatusMessage(status, attempts);
           
-          if (status === 'success' || status === 'succeeded') {
+          if (status === 'success' || status === 'succeeded' || status === 'succeed') {
             isComplete = true;
             setError(null); // Clear status message
             
