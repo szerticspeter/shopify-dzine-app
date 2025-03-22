@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import './App.css';
 import ProductSelect from './ProductSelect';
+import ImageEditor from './ImageEditor';
 
 function App() {
   const [uploadedImage, setUploadedImage] = useState(null);
@@ -523,11 +524,11 @@ function App() {
                     onClick={() => {
                       // Store image in sessionStorage instead of URL parameter
                       sessionStorage.setItem('stylizedImage', result.url);
-                      window.location.href = '/products';
+                      window.location.href = '/editor';
                     }}
                     className="create-product-button"
                   >
-                    Continue to Select Products
+                    Continue to Image Editor
                   </button>
                   <p className="guarantee-text">
                     <svg className="guarantee-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" width="18" height="18">
@@ -542,6 +543,7 @@ function App() {
           </div>
         } />
         <Route path="/products" element={<ProductSelect />} />
+        <Route path="/editor" element={<ImageEditor />} />
       </Routes>
     </Router>
   );
