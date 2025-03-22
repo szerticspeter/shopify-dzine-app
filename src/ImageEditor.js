@@ -1,6 +1,10 @@
 import React, { useState, useEffect, useRef } from 'react';
 import './App.css';
 
+// Preload the canvas image
+const preloadedCanvasImage = new Image();
+preloadedCanvasImage.src = '/images/products/canvas16x20.png';
+
 const ImageEditor = () => {
   const [image, setImage] = useState(null);
   const [productImage, setProductImage] = useState(null);
@@ -201,20 +205,32 @@ const ImageEditor = () => {
     ctx.fillStyle = '#ffffff';
     ctx.fillRect(0, 0, canvas.width, canvas.height);
     
-    // Draw the product image as background if available
+    // Draw the product image as background
+    console.log("Drawing product image");
+    
+    // Try multiple approaches
     if (productImageRef.current) {
-      console.log("Drawing product image");
-      console.log("Product image dimensions:", productImageRef.current.width, "x", productImageRef.current.height);
+      // 1. Use the loaded image from state
+      console.log("Using image from state:", productImageRef.current.width, "x", productImageRef.current.height);
       ctx.drawImage(productImageRef.current, 0, 0, canvas.width, canvas.height);
+    } else if (preloadedCanvasImage.complete && preloadedCanvasImage.width > 0) {
+      // 2. Use the preloaded image
+      console.log("Using preloaded image:", preloadedCanvasImage.width, "x", preloadedCanvasImage.height);
+      ctx.drawImage(preloadedCanvasImage, 0, 0, canvas.width, canvas.height);
+      
+      // Update the state for future renders
+      setProductImage(preloadedCanvasImage);
+      productImageRef.current = preloadedCanvasImage;
     } else {
-      console.error("Product image not loaded - trying alternative approach");
-      // Try direct loading as fallback
-      const fallbackImg = new Image();
-      fallbackImg.onload = () => {
-        console.log("Fallback image loaded directly in drawCanvas");
-        ctx.drawImage(fallbackImg, 0, 0, canvas.width, canvas.height);
-      };
-      fallbackImg.src = '/images/products/canvas16x20.png';
+      // 3. Show a simple placeholder
+      console.error("No product image available - showing placeholder");
+      ctx.fillStyle = '#f0f0f0';
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      
+      // Add a border to visualize the canvas area
+      ctx.strokeStyle = '#aaaaaa';
+      ctx.lineWidth = 1;
+      ctx.strokeRect(0, 0, canvas.width, canvas.height);
     }
     
     // Draw the user image if available
@@ -227,48 +243,16 @@ const ImageEditor = () => {
       ctx.restore();
     }
     
-    // If we have printable corners data, create the overlay
+    // If we have printable corners data, just draw the printable area border
+    // (overlay temporarily removed for debugging)
     if (printableCorners.length === 4 && productImageRef.current) {
-      console.log("Drawing printable area overlay");
+      console.log("Drawing printable area border only (overlay disabled)");
       // Create a polygon path for the printable area
       const scaleFactorX = canvas.width / productImageRef.current.width;
       const scaleFactorY = canvas.height / productImageRef.current.height;
       
-      // We will create a mask that only applies the overlay to the non-printable area
-      ctx.save();
-
-      // Create a path for the printable area
-      ctx.beginPath();
-      ctx.moveTo(printableCorners[0].x * scaleFactorX, printableCorners[0].y * scaleFactorY);
-      for (let i = 1; i < printableCorners.length; i++) {
-        ctx.lineTo(printableCorners[i].x * scaleFactorX, printableCorners[i].y * scaleFactorY);
-      }
-      ctx.closePath();
-      
-      // Create a clipping region INSIDE the printable area
-      ctx.clip();
-      
-      // We're now inside the printable area
-      // Save this state so we can restore it later
-      ctx.save();
-      
-      // Now, invert the clipping region
-      ctx.beginPath();
-      ctx.rect(0, 0, canvas.width, canvas.height);
-      ctx.clip("evenodd"); // This creates an inverted clip region
-
-      // Now we're in the NON-printable area
-      // Draw the semi-transparent overlay only over the non-printable area
-      ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
-      ctx.fillRect(0, 0, canvas.width, canvas.height);
-      
-      // Restore to the printable area clip state
-      ctx.restore();
-      
-      // Reset composite operation
-      ctx.globalCompositeOperation = 'source-over';
-      
       // Draw a visible border around the printable area
+      ctx.save();
       ctx.strokeStyle = 'rgba(0, 150, 255, 0.8)';
       ctx.lineWidth = 2;
       ctx.beginPath();
