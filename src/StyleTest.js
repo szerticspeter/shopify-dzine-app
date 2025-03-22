@@ -13,6 +13,8 @@ function StyleTest() {
   const [isDragging, setIsDragging] = useState(false);
   const [error, setError] = useState(null);
   const [baseModels, setBaseModels] = useState([]);
+  const [statusMessage, setStatusMessage] = useState(null);
+  const [progress, setProgress] = useState(0);
   const fileInputRef = useRef(null);
 
   // Fetch style list on component mount
@@ -208,10 +210,22 @@ function StyleTest() {
     console.log('Applying style:', styleCode, 'with base model:', baseModel);
     setSelectedStyle(styleCode);
     setResult(null);
+    setStatusMessage(null);
+    setProgress(0);
     
     if (uploadedImage) {
       setIsProcessing(true);
       setError(null);
+      
+      // Check if it's an X base model (which doesn't support img2img)
+      if (baseModel === 'X') {
+        console.log('Model X detected - these models do not support img2img operations');
+        setTimeout(() => {
+          setIsProcessing(false);
+          setError('Base Model X styles cannot be used with img2img transformations. Please try a style from Base Model S instead.');
+        }, 1000); // Add a small delay so the user sees the processing indicator
+        return;
+      }
       
       try {
         // Get API key from environment variables
@@ -226,6 +240,7 @@ function StyleTest() {
         const base64Image = await fileToBase64(uploadedImage);
         
         // Make the API request to apply the style
+        console.log(`Sending img2img request with style_code: ${styleCode} (base model: ${baseModel})`);
         const response = await fetch('https://papi.dzine.ai/openapi/v1/create_task_img2img', {
           method: 'POST',
           headers: {
@@ -258,7 +273,10 @@ function StyleTest() {
         
         if (data.code === 200 && data.data && data.data.task_id) {
           // Poll for task completion
-          await pollTaskProgress(data.data.task_id);
+          await pollTaskProgress(data.data.task_id, baseModel);
+        } else if (data.code === 108005) {
+          // Handle the specific style invalid error
+          throw new Error(`Style not compatible with img2img. This is common with Model X styles. Try a Model S style instead.`);
         } else {
           console.error('Invalid API response structure:', data);
           throw new Error(`Invalid API response format: ${JSON.stringify(data)}`);
@@ -284,11 +302,15 @@ function StyleTest() {
   };
   
   // Helper function to poll for task progress
-  const pollTaskProgress = async (taskId) => {
+  const pollTaskProgress = async (taskId, baseModel) => {
     try {
       let isComplete = false;
       let attempts = 0;
-      const maxAttempts = 30; // Maximum polling attempts
+      // Increase timeout for S base model which might take longer
+      const maxAttempts = baseModel === 'S' ? 60 : 30; // More attempts for S model (2 mins vs 1 min)
+      let statusMessageShown = null;
+      
+      console.log(`Starting task polling for ${baseModel} model, task ID: ${taskId}, max attempts: ${maxAttempts}`);
       
       // Get API key from environment variables
       const apiKey = process.env.REACT_APP_DZINE_API_KEY;
@@ -297,6 +319,20 @@ function StyleTest() {
       if (!apiKey || apiKey === 'your_api_key_here') {
         throw new Error('No valid API key configured');
       }
+      
+      // Function to show status message to user
+      const updateStatusMessage = (status, attempt) => {
+        const progressPct = Math.round((attempt/maxAttempts) * 100);
+        const message = `Processing image (${status})... ${progressPct}%`;
+        if (message !== statusMessageShown) {
+          statusMessageShown = message;
+          // Update the status message and progress states
+          setStatusMessage(message);
+          setProgress(progressPct);
+          // Also update document title
+          document.title = `Processing: ${progressPct}%`;
+        }
+      };
       
       while (!isComplete && attempts < maxAttempts) {
         attempts++;
@@ -319,14 +355,21 @@ function StyleTest() {
         
         const data = await response.json();
         
-        // Debug: Log the task progress response
-        console.log('Task Progress Response:', JSON.stringify(data, null, 2));
+        // Debug: Log the task progress response (but not on every attempt to avoid console spam)
+        if (attempts % 5 === 0 || attempts === 1) {
+          console.log(`Task Progress (Attempt ${attempts}/${maxAttempts}):`, JSON.stringify(data, null, 2));
+        }
         
         if (data.code === 200 && data.data) {
-          console.log('Task status:', data.data.status);
+          const status = data.data.status;
+          console.log(`Task status (${attempts}/${maxAttempts}):`, status);
           
-          if (data.data.status === 'success' || data.data.status === 'succeeded') {
+          // Update the user with progress
+          updateStatusMessage(status, attempts);
+          
+          if (status === 'success' || status === 'succeeded') {
             isComplete = true;
+            setError(null); // Clear status message
             
             // Debug: Log the generate_result_slots
             console.log('Result slots:', data.data.generate_result_slots);
@@ -336,16 +379,17 @@ function StyleTest() {
             
             if (resultUrl) {
               setResult({ url: resultUrl });
+              console.log('Successfully retrieved result image URL:', resultUrl);
             } else {
               console.error('No non-empty URL found in generate_result_slots:', data.data.generate_result_slots);
-              throw new Error('No result image found');
+              throw new Error('No result image found in API response. The transformation might have failed.');
             }
-          } else if (data.data.status === 'failed') {
+          } else if (status === 'failed') {
             console.error('Task failed:', data.data);
             throw new Error(`Task failed: ${data.data.error_reason || 'Unknown error'}`);
           } else {
             // Still processing, continue polling
-            console.log(`Task in progress: ${data.data.status}, attempt ${attempts}/${maxAttempts}`);
+            console.log(`Task in progress: ${status}, attempt ${attempts}/${maxAttempts}`);
           }
         } else {
           console.error('Invalid task progress response structure:', data);
@@ -354,7 +398,7 @@ function StyleTest() {
       }
       
       if (!isComplete) {
-        throw new Error('Task processing timed out');
+        throw new Error(`Task processing timed out after ${maxAttempts * 2} seconds. The S base model can sometimes take longer than our timeout period. Try again or try a different style.`);
       }
     } catch (error) {
       console.error('Error polling task progress:', error);
@@ -362,6 +406,9 @@ function StyleTest() {
       throw error;
     } finally {
       setIsProcessing(false);
+      setStatusMessage(null);
+      setProgress(0);
+      document.title = 'Dzine.ai Style Testing'; // Reset the page title
     }
   };
 
@@ -481,7 +528,17 @@ function StyleTest() {
         {isProcessing && (
           <div className="processing">
             <div className="spinner"></div>
-            <p>Processing your image with the selected style...</p>
+            <p id="processing-status">
+              {statusMessage || "Processing your image with the selected style..."}
+            </p>
+            {progress > 0 && (
+              <div className="progress-bar">
+                <div 
+                  className="progress-fill"
+                  style={{ width: `${Math.min(progress, 100)}%` }}
+                ></div>
+              </div>
+            )}
           </div>
         )}
         
