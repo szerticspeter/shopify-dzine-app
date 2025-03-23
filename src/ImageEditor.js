@@ -10,7 +10,8 @@ const ImageEditor = () => {
   const [productImage, setProductImage] = useState(null);
   const [printableCorners, setPrintableCorners] = useState([]);
   const [isDragging, setIsDragging] = useState(false);
-  // Removed resizing state
+  const [isResizing, setIsResizing] = useState(false);
+  const [activeCorner, setActiveCorner] = useState(null);
   const canvasRef = useRef(null);
   const imageRef = useRef(null);
   const productImageRef = useRef(null);
@@ -25,8 +26,9 @@ const ImageEditor = () => {
   const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
   // Scale will be set once when the image loads
   const [imageScale, setImageScale] = useState(1);
+  const [initialImageSize, setInitialImageSize] = useState({ width: 0, height: 0 });
   
-  // Constants for the resize handles (visual only now)
+  // Constants for the resize handles
   const HANDLE_SIZE = 20; // Size of the corner resize handles
   const CORNERS = ['nw', 'ne', 'se', 'sw']; // Corner positions
 
@@ -132,6 +134,12 @@ const ImageEditor = () => {
       console.log("User image loaded successfully");
       setImage(userImg);
       imageRef.current = userImg;
+      
+      // Store the initial image size for reference during resizing
+      setInitialImageSize({
+        width: userImg.width,
+        height: userImg.height
+      });
       
       // Position the image based on corners data
       positionUserImage(userImg, productImg, corners);
@@ -316,7 +324,7 @@ const ImageEditor = () => {
     }
   };
 
-  // Function to draw resize handles at the corners of the image (visual only, no functionality)
+  // Function to draw resize handles at the corners of the image
   const drawResizeHandles = (ctx, x, y, width, height) => {
     const halfHandleSize = HANDLE_SIZE / 2;
     
@@ -352,16 +360,62 @@ const ImageEditor = () => {
     return dx * dx + dy * dy <= radius * radius;
   };
   
-  // Removed resize handle detection as we're removing the zoom/resize feature
+  // Check if the cursor is over a resize handle
+  const getResizeHandleAtPosition = (x, y) => {
+    if (!imageRef.current || !image) return null;
+    
+    const userImageWidth = imageRef.current.width * imageScale;
+    const userImageHeight = imageRef.current.height * imageScale;
+    const halfHandleSize = HANDLE_SIZE / 2;
+    
+    // Calculate handle positions
+    const handlePositions = {
+      'nw': { 
+        x: imagePosition.x - halfHandleSize + halfHandleSize, 
+        y: imagePosition.y - halfHandleSize + halfHandleSize 
+      },
+      'ne': { 
+        x: imagePosition.x + userImageWidth - halfHandleSize + halfHandleSize, 
+        y: imagePosition.y - halfHandleSize + halfHandleSize 
+      },
+      'se': { 
+        x: imagePosition.x + userImageWidth - halfHandleSize + halfHandleSize, 
+        y: imagePosition.y + userImageHeight - halfHandleSize + halfHandleSize 
+      },
+      'sw': { 
+        x: imagePosition.x - halfHandleSize + halfHandleSize, 
+        y: imagePosition.y + userImageHeight - halfHandleSize + halfHandleSize 
+      }
+    };
+    
+    // Check each handle
+    for (const corner of CORNERS) {
+      if (isInsideCircle(x, y, handlePositions[corner].x, handlePositions[corner].y, halfHandleSize)) {
+        return corner;
+      }
+    }
+    
+    return null;
+  };
 
-  // Mouse and touch event handlers - simplified for drag only
+  // Mouse and touch event handlers for both dragging and resizing
   const handleMouseDown = (e) => {
     e.preventDefault();
     const rect = canvasRef.current.getBoundingClientRect();
     const x = e.clientX - rect.left;
     const y = e.clientY - rect.top;
     
-    // Start dragging
+    // Check if we're clicking on a resize handle
+    const corner = getResizeHandleAtPosition(x, y);
+    if (corner) {
+      // Start resizing
+      setIsResizing(true);
+      setActiveCorner(corner);
+      setDragStart({ x, y });
+      return;
+    }
+    
+    // If not on a handle, start dragging
     setIsDragging(true);
     setDragStart({ x, y });
   };
@@ -373,24 +427,42 @@ const ImageEditor = () => {
       const x = e.touches[0].clientX - rect.left;
       const y = e.touches[0].clientY - rect.top;
       
-      // Start dragging
+      // Check if we're touching a resize handle
+      const corner = getResizeHandleAtPosition(x, y);
+      if (corner) {
+        // Start resizing
+        setIsResizing(true);
+        setActiveCorner(corner);
+        setDragStart({ x, y });
+        return;
+      }
+      
+      // If not on a handle, start dragging
       setIsDragging(true);
       setDragStart({ x, y });
     }
   };
 
   const handleMouseMove = (e) => {
-    if (!isDragging) return;
+    if (!isDragging && !isResizing) return;
     e.preventDefault();
     
-    moveImage(e.clientX, e.clientY);
+    if (isResizing) {
+      resizeImage(e.clientX, e.clientY);
+    } else if (isDragging) {
+      moveImage(e.clientX, e.clientY);
+    }
   };
 
   const handleTouchMove = (e) => {
-    if (!isDragging || e.touches.length !== 1) return;
+    if ((!isDragging && !isResizing) || e.touches.length !== 1) return;
     e.preventDefault();
     
-    moveImage(e.touches[0].clientX, e.touches[0].clientY);
+    if (isResizing) {
+      resizeImage(e.touches[0].clientX, e.touches[0].clientY);
+    } else if (isDragging) {
+      moveImage(e.touches[0].clientX, e.touches[0].clientY);
+    }
   };
 
   const moveImage = (clientX, clientY) => {
@@ -409,19 +481,151 @@ const ImageEditor = () => {
     setDragStart({ x, y });
   };
   
-  // Removed resizeImage function as we're removing the zoom/resize feature
+  const resizeImage = (clientX, clientY) => {
+    if (!activeCorner || !imageRef.current) return;
+    
+    const rect = canvasRef.current.getBoundingClientRect();
+    const x = clientX - rect.left;
+    const y = clientY - rect.top;
+    
+    const deltaX = x - dragStart.x;
+    const deltaY = y - dragStart.y;
+    
+    // Calculate new scale based on the active corner
+    const currentWidth = imageRef.current.width * imageScale;
+    const currentHeight = imageRef.current.height * imageScale;
+    let newScale = imageScale;
+    let newPosition = { ...imagePosition };
+    
+    // Calculate aspect ratio
+    const aspectRatio = initialImageSize.width / initialImageSize.height;
+    
+    // Determine how to scale and reposition based on which corner is being dragged
+    switch (activeCorner) {
+      case 'nw':
+        // Northwest corner affects both width and height, and the position
+        {
+          const scaleDeltaX = (currentWidth - deltaX) / imageRef.current.width;
+          const scaleDeltaY = (currentHeight - deltaY) / imageRef.current.height;
+          
+          // Use the larger scale change to maintain aspect ratio
+          newScale = Math.max(scaleDeltaX, scaleDeltaY);
+          
+          // Update position to keep the opposite corner (SE) fixed
+          newPosition = {
+            x: imagePosition.x + (currentWidth - (imageRef.current.width * newScale)),
+            y: imagePosition.y + (currentHeight - (imageRef.current.height * newScale))
+          };
+        }
+        break;
+        
+      case 'ne':
+        // Northeast corner affects width and height, and y-position
+        {
+          const scaleDeltaX = (currentWidth + deltaX) / imageRef.current.width;
+          const scaleDeltaY = (currentHeight - deltaY) / imageRef.current.height;
+          
+          // Use the larger scale change to maintain aspect ratio
+          newScale = Math.max(scaleDeltaX, scaleDeltaY);
+          
+          // Update position to keep the southwest corner fixed
+          newPosition = {
+            x: imagePosition.x,
+            y: imagePosition.y + (currentHeight - (imageRef.current.height * newScale))
+          };
+        }
+        break;
+        
+      case 'se':
+        // Southeast corner affects width and height
+        {
+          const scaleDeltaX = (currentWidth + deltaX) / imageRef.current.width;
+          const scaleDeltaY = (currentHeight + deltaY) / imageRef.current.height;
+          
+          // Use the larger scale change to maintain aspect ratio
+          newScale = Math.max(scaleDeltaX, scaleDeltaY);
+          
+          // Position remains the same as the NW corner is fixed
+        }
+        break;
+        
+      case 'sw':
+        // Southwest corner affects width and height, and x-position
+        {
+          const scaleDeltaX = (currentWidth - deltaX) / imageRef.current.width;
+          const scaleDeltaY = (currentHeight + deltaY) / imageRef.current.height;
+          
+          // Use the larger scale change to maintain aspect ratio
+          newScale = Math.max(scaleDeltaX, scaleDeltaY);
+          
+          // Update position to keep the northeast corner fixed
+          newPosition = {
+            x: imagePosition.x + (currentWidth - (imageRef.current.width * newScale)),
+            y: imagePosition.y
+          };
+        }
+        break;
+    }
+    
+    // Set a minimum scale to prevent the image from becoming too small
+    const minScale = 0.1;
+    if (newScale < minScale) newScale = minScale;
+    
+    // Update the scale and position
+    setImageScale(newScale);
+    setImagePosition(newPosition);
+    setDragStart({ x, y });
+  };
 
   const handleMouseUp = () => {
     setIsDragging(false);
+    setIsResizing(false);
+    setActiveCorner(null);
   };
 
   const handleTouchEnd = () => {
     setIsDragging(false);
+    setIsResizing(false);
+    setActiveCorner(null);
   };
   
   // Function to determine the cursor style based on the current interaction state
   const getCursorStyle = () => {
-    return isDragging ? 'grabbing' : 'grab';
+    if (isDragging) return 'grabbing';
+    if (isResizing) {
+      switch (activeCorner) {
+        case 'nw':
+        case 'se':
+          return 'nwse-resize';
+        case 'ne':
+        case 'sw':
+          return 'nesw-resize';
+        default:
+          return 'pointer';
+      }
+    }
+    
+    return 'grab';
+  };
+  
+  // Track mouse position for cursor changes
+  const handleMouseOver = (e) => {
+    if (!canvasRef.current) return;
+    
+    const rect = canvasRef.current.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const y = e.clientY - rect.top;
+    
+    const corner = getResizeHandleAtPosition(x, y);
+    if (corner) {
+      if (corner === 'nw' || corner === 'se') {
+        e.target.style.cursor = 'nwse-resize';
+      } else {
+        e.target.style.cursor = 'nesw-resize';
+      }
+    } else {
+      e.target.style.cursor = 'grab';
+    }
   };
 
   // Removed wheel handler as we're removing the zoom feature
@@ -507,6 +711,7 @@ const ImageEditor = () => {
           onMouseMove={handleMouseMove}
           onMouseUp={handleMouseUp}
           onMouseLeave={handleMouseUp}
+          onMouseOver={handleMouseOver}
           onTouchStart={handleTouchStart}
           onTouchMove={handleTouchMove}
           onTouchEnd={handleTouchEnd}
@@ -524,6 +729,7 @@ const ImageEditor = () => {
         <h3>Instructions:</h3>
         <ul>
           <li>Drag the image to reposition it</li>
+          <li>Use the blue corner handles to resize the image</li>
           <li>The lighter area shows what will be printed</li>
           <li>The darker areas will not be printed</li>
         </ul>
