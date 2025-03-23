@@ -177,7 +177,7 @@ function App() {
           structure_match: 0.7,
           face_match: 1,
           quality_mode: 1,
-          generate_slots: [1, 0, 0, 0],
+          generate_slots: [1, 1, 1, 1],
           images: [
             {
               base64_data: base64Image.replace(/^data:image\/[a-z]+;base64,/, '')
@@ -349,22 +349,23 @@ function App() {
               throw new Error('The API returned success but did not provide any result images. Try again.');
             }
             
-            // Get the first non-empty image URL from generate_result_slots
-            const resultUrl = data.data.generate_result_slots.find(url => url && url.trim() !== '');
+            // Get all non-empty image URLs from generate_result_slots
+            const resultUrls = data.data.generate_result_slots.filter(url => url && url.trim() !== '');
             
-            if (resultUrl) {
-              // Verify that this URL is valid before proceeding
+            if (resultUrls.length > 0) {
+              // Verify that these URLs are valid before proceeding
               try {
-                new URL(resultUrl); // This will throw if the URL is invalid
-                setResult({ url: resultUrl });
-                console.log('Successfully retrieved result image URL:', resultUrl);
+                // Check that all URLs are valid
+                resultUrls.forEach(url => new URL(url));
+                setResult({ urls: resultUrls, selectedUrl: resultUrls[0] });
+                console.log('Successfully retrieved result image URLs:', resultUrls);
               } catch (e) {
-                console.error('Invalid URL format in result:', resultUrl);
-                throw new Error('The API returned an invalid image URL. Please try again.');
+                console.error('Invalid URL format in results:', resultUrls);
+                throw new Error('The API returned invalid image URLs. Please try again.');
               }
             } else {
-              console.error('No non-empty URL found in generate_result_slots:', data.data.generate_result_slots);
-              throw new Error('No result image found in API response. The transformation might have failed.');
+              console.error('No non-empty URLs found in generate_result_slots:', data.data.generate_result_slots);
+              throw new Error('No result images found in API response. The transformation might have failed.');
             }
           } else if (status === 'failed') {
             console.error('Task failed:', data.data);
@@ -534,17 +535,33 @@ function App() {
 
               {result && (
                 <section className="result-section">
-                  <h2>Your Stylized Image is Ready!</h2>
+                  <h2>Your Stylized Images are Ready!</h2>
                   <p className="result-description">
-                    Your photo has been transformed! Now choose your perfect product.
+                    Your photo has been transformed! Choose your favorite version below.
                   </p>
-                  <div className="result-image-container">
-                    <img src={result.url} alt="Your stylized image result" />
+                  <div className="style-variations-grid">
+                    {result.urls.map((url, index) => (
+                      <div 
+                        key={index} 
+                        className={`style-variation ${result.selectedUrl === url ? 'selected' : ''}`}
+                        onClick={() => setResult({...result, selectedUrl: url})}
+                      >
+                        <img src={url} alt={`Style variation ${index + 1}`} />
+                        {result.selectedUrl === url && (
+                          <div className="selected-badge">
+                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" width="24" height="24">
+                              <path d="M0 0h24v24H0z" fill="none"/>
+                              <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/>
+                            </svg>
+                          </div>
+                        )}
+                      </div>
+                    ))}
                   </div>
                   <button 
                     onClick={() => {
-                      // Store image in sessionStorage instead of URL parameter
-                      sessionStorage.setItem('stylizedImage', result.url);
+                      // Store the selected image in sessionStorage
+                      sessionStorage.setItem('stylizedImage', result.selectedUrl);
                       window.location.href = '/editor';
                     }}
                     className="create-product-button"

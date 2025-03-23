@@ -1050,3 +1050,47 @@ body {
   transform: translateY(-2px);
   box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
 }
+
+/* Styles for the image variations grid */
+.style-variations-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 15px;
+  margin: 20px 0;
+  max-width: 800px;
+  margin: 0 auto;
+}
+
+.style-variation {
+  position: relative;
+  cursor: pointer;
+  border: 3px solid transparent;
+  border-radius: 8px;
+  transition: all 0.2s ease-in-out;
+  overflow: hidden;
+}
+
+.style-variation img {
+  width: 100%;
+  display: block;
+  border-radius: 4px;
+}
+
+.style-variation.selected {
+  border-color: #3498db;
+  box-shadow: 0 0 10px rgba(52, 152, 219, 0.5);
+}
+
+.style-variation .selected-badge {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  background-color: #3498db;
+  color: white;
+  border-radius: 50%;
+  width: 30px;
+  height: 30px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}

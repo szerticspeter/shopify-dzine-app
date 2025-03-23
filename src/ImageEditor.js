@@ -124,8 +124,13 @@ const ImageEditor = () => {
   
   // Load the user's stylized image
   const loadUserImage = (productImg, corners) => {
-    // Use the test image URL (replace with user uploaded image in production)
-    const testImageUrl = 'https://static.dzine.ai/open_product/20250322/54/img2img/1_output_1742650385000203_jrmL0.webp';
+    // Get the stylized image from sessionStorage
+    const stylizedImageUrl = sessionStorage.getItem('stylizedImage');
+    
+    // Fallback to test image if no image was provided
+    const imageUrl = stylizedImageUrl || 'https://static.dzine.ai/open_product/20250322/54/img2img/1_output_1742650385000203_jrmL0.webp';
+    
+    console.log("Loading user image from URL:", imageUrl);
     
     // Preload the user image
     const userImg = new Image();
@@ -147,7 +152,7 @@ const ImageEditor = () => {
     userImg.onerror = (e) => {
       console.error("Error loading user image:", e);
     };
-    userImg.src = testImageUrl;
+    userImg.src = imageUrl;
   };
 
   const positionUserImage = (userImg, productImg, corners) => {
