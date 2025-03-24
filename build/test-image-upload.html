@@ -1,0 +1,233 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test Image Upload to Shopify</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            line-height: 1.6;
+        }
+        h1 {
+            color: #2a2a2a;
+            border-bottom: 1px solid #eaeaea;
+            padding-bottom: 10px;
+        }
+        .test-container {
+            background-color: #f9f9f9;
+            border: 1px solid #e1e1e1;
+            border-radius: 5px;
+            padding: 20px;
+            margin: 20px 0;
+        }
+        .url-input {
+            width: 100%;
+            padding: 10px;
+            margin: 10px 0;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+        }
+        .test-button {
+            background-color: #5c6ac4;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            padding: 10px 20px;
+            cursor: pointer;
+            font-size: 16px;
+            margin-right: 10px;
+        }
+        .test-button:hover {
+            background-color: #4959bd;
+        }
+        pre {
+            background-color: #f1f1f1;
+            padding: 10px;
+            overflow: auto;
+            border-radius: 4px;
+        }
+        .instruction-highlight {
+            background-color: #ffeeba;
+            padding: 2px 5px;
+            border-radius: 3px;
+        }
+    </style>
+</head>
+<body>
+    <h1>Test Image Upload to Shopify</h1>
+    
+    <div class="test-container">
+        <h2>Image Preparation</h2>
+        <p>This tool will help you prepare an image from a URL for uploading to Shopify's customizer.</p>
+        
+        <h3>Image URL</h3>
+        <input type="text" id="imageUrl" class="url-input" value="https://images.unsplash.com/photo-1579783902614-a3fb3927b6a5?ixlib=rb-4.0.3&auto=format&fit=crop&w=2245&q=80">
+        
+        <h3>Shopify Product URL</h3>
+        <input type="text" id="productUrl" class="url-input" value="https://g2pgc1-08.myshopify.com/products/test-product-for-in-storepage-personalization">
+        
+        <div style="margin-top: 20px;">
+            <button id="prepareButton" class="test-button">Download Image from URL</button>
+            <button id="directButton" class="test-button" style="background-color: #47c1bf;">Go to Product Page</button>
+        </div>
+        
+        <div id="result" style="margin-top: 20px;"></div>
+    </div>
+    
+    <div class="test-container">
+        <h2>Method 2: Clipboard Copy Test</h2>
+        <p>This method will attempt to copy the image to your clipboard so you can paste it directly into Shopify.</p>
+        
+        <div style="margin-top: 20px;">
+            <button id="clipboardButton" class="test-button" style="background-color: #ee5253;">Copy Image to Clipboard</button>
+        </div>
+        
+        <div id="clipboardResult" style="margin-top: 20px;"></div>
+    </div>
+    
+    <h2>Instructions</h2>
+    <ol>
+        <li>Enter the URL of an image you want to use (default is an Unsplash image)</li>
+        <li>Click <span class="instruction-highlight">Download Image from URL</span> to download the image to your device</li>
+        <li>Click <span class="instruction-highlight">Go to Product Page</span> to open your Shopify product</li>
+        <li>On the Shopify product page:
+            <ol>
+                <li>Click <span class="instruction-highlight">Replace image</span> button</li>
+                <li>Select <span class="instruction-highlight">My device</span> option</li>
+                <li>Browse to the downloaded image and select it</li>
+            </ol>
+        </li>
+    </ol>
+    
+    <h2>Alternative Method: Clipboard</h2>
+    <ol>
+        <li>Click <span class="instruction-highlight">Copy Image to Clipboard</span> (only works in Chrome, and may not work with all sites)</li>
+        <li>Go to the Shopify customizer</li>
+        <li>Click <span class="instruction-highlight">Replace image</span></li>
+        <li>Try to paste the image (Ctrl+V or Cmd+V)</li>
+    </ol>
+    
+    <h2>Understanding the Issue</h2>
+    <p>Based on your tests, it appears Shopify's customizer requires a direct file upload from the user's device and doesn't support programmatic file injection. This is likely for security reasons.</p>
+    
+    <p>The options above represent the most straightforward ways to get an external image into Shopify's customizer:</p>
+    <ol>
+        <li>Download the image first, then upload it manually</li>
+        <li>Try clipboard operations (may not be supported by Shopify)</li>
+    </ol>
+
+    <script>
+        // Function to download the image
+        document.getElementById('prepareButton').addEventListener('click', async function() {
+            const imageUrl = document.getElementById('imageUrl').value.trim();
+            
+            if (!imageUrl) {
+                alert('Please enter an image URL');
+                return;
+            }
+            
+            try {
+                document.getElementById('result').innerHTML = '<p>Downloading image... please wait.</p>';
+                
+                // Fetch the image
+                const response = await fetch(imageUrl);
+                if (!response.ok) {
+                    throw new Error(`Failed to fetch image: ${response.status} ${response.statusText}`);
+                }
+                
+                const blob = await response.blob();
+                
+                // Create a download link
+                const downloadUrl = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = downloadUrl;
+                a.download = 'stylized-image.jpg'; // Set the filename
+                
+                // Trigger download
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                
+                // Clean up
+                setTimeout(() => URL.revokeObjectURL(downloadUrl), 100);
+                
+                document.getElementById('result').innerHTML = `
+                    <p>✅ Image downloaded successfully! Now:</p>
+                    <ol>
+                        <li>Click <strong>Go to Product Page</strong> to open your Shopify product</li>
+                        <li>On the Shopify page, click <strong>Replace image</strong></li>
+                        <li>Select <strong>My device</strong></li>
+                        <li>Choose the image you just downloaded (stylized-image.jpg)</li>
+                    </ol>
+                `;
+            } catch (error) {
+                console.error('Error downloading image:', error);
+                document.getElementById('result').innerHTML = `
+                    <p>❌ Error downloading image: ${error.message}</p>
+                `;
+            }
+        });
+        
+        // Direct navigation to product page
+        document.getElementById('directButton').addEventListener('click', function() {
+            const productUrl = document.getElementById('productUrl').value.trim();
+            if (productUrl) {
+                window.open(productUrl, '_blank');
+            } else {
+                alert('Please enter a product URL');
+            }
+        });
+        
+        // Clipboard copy attempt (may not work on all browsers/sites)
+        document.getElementById('clipboardButton').addEventListener('click', async function() {
+            const imageUrl = document.getElementById('imageUrl').value.trim();
+            
+            if (!imageUrl) {
+                alert('Please enter an image URL');
+                return;
+            }
+            
+            try {
+                document.getElementById('clipboardResult').innerHTML = '<p>Attempting to copy image to clipboard... please wait.</p>';
+                
+                // Try to fetch the image
+                const response = await fetch(imageUrl);
+                if (!response.ok) {
+                    throw new Error(`Failed to fetch image: ${response.status} ${response.statusText}`);
+                }
+                
+                const blob = await response.blob();
+                
+                // Try to copy to clipboard (this may not work in all browsers)
+                try {
+                    const item = new ClipboardItem({ [blob.type]: blob });
+                    await navigator.clipboard.write([item]);
+                    
+                    document.getElementById('clipboardResult').innerHTML = `
+                        <p>✅ Image copied to clipboard! Now:</p>
+                        <ol>
+                            <li>Go to your Shopify product page</li>
+                            <li>Click <strong>Replace image</strong></li>
+                            <li>Try to paste the image (Ctrl+V or Cmd+V)</li>
+                        </ol>
+                        <p><em>Note: This method may not work with Shopify's customizer - it depends on how they've implemented file uploads.</em></p>
+                    `;
+                } catch (clipboardError) {
+                    throw new Error(`Clipboard API not supported or permission denied: ${clipboardError.message}`);
+                }
+            } catch (error) {
+                console.error('Error with clipboard operation:', error);
+                document.getElementById('clipboardResult').innerHTML = `
+                    <p>❌ Error copying to clipboard: ${error.message}</p>
+                    <p>This browser may not support clipboard operations, or the site's content security policy may prevent it.</p>
+                    <p>Please try the download method instead.</p>
+                `;
+            }
+        });
+    </script>
+</body>
+</html>

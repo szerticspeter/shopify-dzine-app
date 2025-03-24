@@ -1,0 +1,321 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Prodigi SDK Test</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            line-height: 1.6;
+        }
+        h1 {
+            color: #2a2a2a;
+            border-bottom: 1px solid #eaeaea;
+            padding-bottom: 10px;
+        }
+        .test-container {
+            background-color: #f9f9f9;
+            border: 1px solid #e1e1e1;
+            border-radius: 5px;
+            padding: 20px;
+            margin: 20px 0;
+        }
+        button {
+            background-color: #5c6ac4;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            padding: 10px 20px;
+            cursor: pointer;
+            font-size: 16px;
+            margin-top: 10px;
+        }
+        button:hover {
+            background-color: #4959bd;
+        }
+        #image-preview {
+            max-width: 300px;
+            max-height: 300px;
+            margin: 20px 0;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+        pre {
+            background-color: #f1f1f1;
+            padding: 10px;
+            overflow: auto;
+            border-radius: 4px;
+        }
+        .result-container {
+            margin-top: 20px;
+            padding: 15px;
+            background-color: #f5f5f5;
+            border-radius: 4px;
+        }
+        select {
+            padding: 8px;
+            margin: 10px 0;
+            border-radius: 4px;
+            border: 1px solid #ddd;
+        }
+    </style>
+    <!-- Load Prodigi WebSDK -->
+    <script src="https://sdk.prodigi.com/web-to-print/v5/prodigi-web-to-print-sdk.umd.min.js"></script>
+</head>
+<body>
+    <h1>Prodigi SDK Test</h1>
+    
+    <div class="test-container">
+        <h2>Test with Fixed Image URL</h2>
+        <p>This page tests the Prodigi SDK with a test image URL:</p>
+        <code>https://cdn.pixabay.com/photo/2025/03/02/22/49/desert-9442958_1280.jpg</code>
+
+        <div>
+            <img id="image-preview" src="https://cdn.pixabay.com/photo/2025/03/02/22/49/desert-9442958_1280.jpg" alt="Test Image">
+        </div>
+
+        <div>
+            <label for="product-select">Select a product:</label>
+            <select id="product-select">
+                <option value="canvas-wrap">Canvas Print</option>
+                <option value="white-mug">Coffee Mug</option>
+                <option value="mens-classic-crew">T-Shirt</option>
+                <option value="suede_12x12_cushion">Suede Cushion (12×12)</option>
+            </select>
+        </div>
+
+        <div>
+            <label for="api-key">Prodigi API Key:</label>
+            <input type="text" id="api-key" placeholder="Enter your Prodigi API key" value="">
+            <p><small>(Defaults to "prodigi-demo-key" if empty)</small></p>
+        </div>
+        
+        <div>
+            <button id="test-prodigi-sdk">Launch Prodigi SDK</button>
+            <button id="test-direct-url">Test Direct URL</button>
+            <button id="test-iframe">Test iframe Approach</button>
+            <button id="test-direct-link" style="background-color: #4CAF50;">Test Direct Shop Link</button>
+        </div>
+        
+        <div id="result" class="result-container">Results will appear here</div>
+    </div>
+    
+    <div class="test-container">
+        <h2>SDK Status</h2>
+        <div id="sdk-status">Checking SDK status...</div>
+    </div>
+
+    <div class="test-container">
+        <h2>Reference Documentation</h2>
+        <ul>
+            <li><a href="https://www.prodigi.com/docs" target="_blank">Prodigi Documentation</a></li>
+            <li><a href="https://www.prodigi.com/docs/sdk/web-to-print/" target="_blank">Web-to-Print SDK</a></li>
+        </ul>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            // Check if Prodigi SDK is loaded
+            const sdkStatus = document.getElementById('sdk-status');
+            
+            if (window.Prodigi) {
+                sdkStatus.innerHTML = `<p>✅ Prodigi SDK detected (version ${window.Prodigi.version || 'unknown'})</p>`;
+                console.log('Prodigi SDK detected:', window.Prodigi);
+            } else {
+                sdkStatus.innerHTML = '<p>❌ Prodigi SDK not detected. Check console for errors.</p>';
+                console.error('Prodigi SDK not detected. Make sure the script is loaded correctly.');
+            }
+
+            // Product mapping
+            const productMapping = {
+                'canvas-wrap': {
+                    name: 'Canvas Print',
+                    url: 'https://www.prodigi.com/products/canvas-posters/canvas-wrap/',
+                    shopUrl: 'https://shop.prodigi.com/prodigi/create/canvas_wrap'
+                },
+                'white-mug': {
+                    name: 'Coffee Mug',
+                    url: 'https://www.prodigi.com/products/drinkware/mugs/white-mug/',
+                    shopUrl: 'https://shop.prodigi.com/prodigi/create/white_ceramic_mug'
+                },
+                'mens-classic-crew': {
+                    name: 'T-Shirt',
+                    url: 'https://www.prodigi.com/products/apparel/t-shirts/mens-classic-crew/',
+                    shopUrl: 'https://shop.prodigi.com/prodigi/create/mens_classic_crew'
+                },
+                'suede_12x12_cushion': {
+                    name: 'Suede Cushion (12×12)',
+                    url: 'https://www.prodigi.com/products/homeware/cushions/suede-cushion/',
+                    shopUrl: 'https://shop.prodigi.com/prodigi/create/suede_12x12_cushion'
+                }
+            };
+
+            // Test image URL
+            const testImageUrl = 'https://cdn.pixabay.com/photo/2025/03/02/22/49/desert-9442958_1280.jpg';
+            
+            // Function to get the API key
+            function getApiKey() {
+                const keyInput = document.getElementById('api-key');
+                return keyInput.value.trim() || 'prodigi-demo-key';
+            }
+
+            // Function to get the selected product
+            function getSelectedProduct() {
+                const select = document.getElementById('product-select');
+                return select.value;
+            }
+
+            // Test button for Prodigi SDK
+            document.getElementById('test-prodigi-sdk').addEventListener('click', function() {
+                const resultDiv = document.getElementById('result');
+                resultDiv.innerHTML = '<p>Attempting to launch Prodigi SDK...</p>';
+                
+                const apiKey = getApiKey();
+                const productId = getSelectedProduct();
+                const product = productMapping[productId];
+                
+                try {
+                    console.log('Initializing Prodigi SDK with:', {
+                        apiKey: apiKey,
+                        productId: productId,
+                        imageUrl: testImageUrl
+                    });
+                    
+                    if (!window.Prodigi) {
+                        throw new Error('Prodigi SDK not loaded');
+                    }
+                    
+                    // Use the Prodigi Web-to-Print SDK with proper configuration
+                    // Documentation: https://www.prodigi.com/docs/sdk/web-to-print/
+                    window.Prodigi.init({
+                        clientKey: apiKey
+                    });
+                    
+                    // Attempt to launch the Prodigi editor
+                    window.Prodigi.openEditor({
+                        productReference: productId,
+                        designData: {
+                            imageUrl: testImageUrl
+                        },
+                        onComplete: function(result) {
+                            console.log('Prodigi editor completed:', result);
+                            resultDiv.innerHTML = `<p>✅ Prodigi editor completed successfully!</p><pre>${JSON.stringify(result, null, 2)}</pre>`;
+                        },
+                        onCancel: function() {
+                            console.log('Prodigi editor cancelled');
+                            resultDiv.innerHTML = '<p>ℹ️ Prodigi editor was cancelled by the user</p>';
+                        },
+                        onError: function(error) {
+                            console.error('Prodigi editor error:', error);
+                            resultDiv.innerHTML = `<p>❌ Prodigi editor error:</p><pre>${JSON.stringify(error, null, 2)}</pre>`;
+                        }
+                    });
+                    
+                    resultDiv.innerHTML += '<p>SDK launch command executed. Check browser console for more details.</p>';
+                } catch (error) {
+                    console.error('Error launching Prodigi SDK:', error);
+                    resultDiv.innerHTML = `<p>❌ Error launching Prodigi SDK: ${error.message}</p>`;
+                }
+            });
+            
+            // Test button for direct URL approach
+            document.getElementById('test-direct-url').addEventListener('click', function() {
+                const resultDiv = document.getElementById('result');
+                const productId = getSelectedProduct();
+                const product = productMapping[productId];
+                
+                try {
+                    // Simply open the product URL in a new tab
+                    resultDiv.innerHTML = `<p>Opening Prodigi product page: ${product.url}</p>`;
+                    resultDiv.innerHTML += '<p>⚠️ Note: You will need to manually upload the image on Prodigi\'s website</p>';
+                    
+                    // Show a download button for the test image
+                    const downloadButton = document.createElement('button');
+                    downloadButton.innerText = 'Download Test Image';
+                    downloadButton.style.backgroundColor = '#4CAF50';
+                    downloadButton.style.marginTop = '10px';
+                    downloadButton.onclick = function() {
+                        const a = document.createElement('a');
+                        a.href = testImageUrl;
+                        a.download = 'test-image.jpg';
+                        a.click();
+                    };
+                    
+                    resultDiv.appendChild(downloadButton);
+                    
+                    // Open the product page
+                    window.open(product.url, '_blank');
+                } catch (error) {
+                    console.error('Error opening product URL:', error);
+                    resultDiv.innerHTML = `<p>❌ Error opening product URL: ${error.message}</p>`;
+                }
+            });
+            
+            // Test button for iframe approach
+            document.getElementById('test-iframe').addEventListener('click', function() {
+                const resultDiv = document.getElementById('result');
+                const productId = getSelectedProduct();
+                const product = productMapping[productId];
+                
+                try {
+                    resultDiv.innerHTML = '<p>Creating iframe for Prodigi product page...</p>';
+                    
+                    // Create an iframe to embed the Prodigi product page
+                    const iframe = document.createElement('iframe');
+                    iframe.src = product.url;
+                    iframe.width = '100%';
+                    iframe.height = '600px';
+                    iframe.style.border = '1px solid #ddd';
+                    iframe.style.borderRadius = '4px';
+                    
+                    // Clear the result div and add the iframe
+                    resultDiv.innerHTML = '';
+                    resultDiv.appendChild(iframe);
+                    
+                    // Show a note about the iframe approach limitations
+                    const note = document.createElement('p');
+                    note.innerHTML = '⚠️ Note: The iframe approach may have limitations with cross-origin restrictions and may not allow for automated image uploads.';
+                    resultDiv.appendChild(note);
+                } catch (error) {
+                    console.error('Error creating iframe:', error);
+                    resultDiv.innerHTML = `<p>❌ Error creating iframe: ${error.message}</p>`;
+                }
+            });
+            
+            // Test button for direct shop.prodigi.com link with image parameter
+            document.getElementById('test-direct-link').addEventListener('click', function() {
+                const resultDiv = document.getElementById('result');
+                const productId = getSelectedProduct();
+                const product = productMapping[productId];
+                
+                try {
+                    // This is the key insight! Prodigi has a direct URL format that loads the image automatically
+                    // Format: https://shop.prodigi.com/prodigi/create/[product_id]?image=[image_url]|[dimensions]
+                    
+                    // Get image dimensions (we'll use a fixed size for the test)
+                    const imageDimensions = "1280x1280"; // Default dimensions
+                    
+                    // Build the direct product URL with image parameter
+                    const directShopUrl = `${product.shopUrl}?image=${encodeURIComponent(testImageUrl)}|${imageDimensions}`;
+                    
+                    resultDiv.innerHTML = `
+                        <p>Opening Prodigi shop URL with direct image loading:</p>
+                        <code>${directShopUrl}</code>
+                        <p>✅ This approach should load the product WITH your image already applied!</p>
+                    `;
+                    
+                    // Open in new tab
+                    window.open(directShopUrl, '_blank');
+                } catch (error) {
+                    console.error('Error opening direct shop URL:', error);
+                    resultDiv.innerHTML = `<p>❌ Error opening direct shop URL: ${error.message}</p>`;
+                }
+            });
+        });
+    </script>
+</body>
+</html>
