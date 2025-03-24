@@ -33,6 +33,11 @@
   compress = true
 
 [[redirects]]
+  from = "/shopify-test"
+  to = "/shopify-test.html"
+  status = 200
+  
+[[redirects]]
   from = "/*"
   to = "/index.html"
   status = 200
