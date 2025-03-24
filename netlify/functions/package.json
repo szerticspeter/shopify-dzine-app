@@ -4,6 +4,7 @@
   "description": "Netlify functions for shopify-dzine-app",
   "dependencies": {
     "node-fetch": "^3.3.0",
-    "node-fetch-commonjs": "^3.3.1"
+    "node-fetch-commonjs": "^3.3.1",
+    "@shopify/shopify-api": "^7.7.0"
   }
 }
