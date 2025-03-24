@@ -86,6 +86,14 @@
     @keyframes spin {
       to { transform: rotate(360deg); }
     }
+    a {
+      color: #008060;
+      text-decoration: none;
+      font-weight: 500;
+    }
+    a:hover {
+      text-decoration: underline;
+    }
   </style>
 </head>
 <body>
@@ -96,20 +104,20 @@
     <h2>Test Image</h2>
     <img src="https://static.dzine.ai/open_product/20250322/54/img2img/1_output_1742650385000203_jrmL0.webp" alt="Test Design" class="test-image" id="testImage">
   
-  <div class="button-container">
-    <button id="createButton">Create Shopify Product</button>
-  </div>
-  
-  <div id="result-container">
-    <h3>Product Created!</h3>
-    <p>We've created a new product in your Shopify store.</p>
-    <p>Redirecting to checkout...</p>
-  </div>
-  
-  <div id="error-container">
-    <h3>Error</h3>
-    <p id="error-message"></p>
-  </div>
+    <div class="button-container">
+      <button id="createButton">Create Shopify Product</button>
+    </div>
+    
+    <div id="result-container">
+      <h3>Product Created!</h3>
+      <p>We've created a new product in your Shopify store.</p>
+      <p>Redirecting to checkout...</p>
+    </div>
+    
+    <div id="error-container">
+      <h3>Error</h3>
+      <p id="error-message"></p>
+    </div>
   </div> <!-- Close container div -->
 
   <script>
@@ -162,12 +170,63 @@
             // Get the variant ID from the response
             const variantId = data.product.variants[0].id;
             
-            // Extract the numeric ID from the Shopify ID
-            const numericVariantId = variantId.split('/').pop();
+            // Log for debugging
+            console.log('Variant ID:', variantId);
+            
+            // Handle different variant ID formats
+            let numericVariantId;
+            if (typeof variantId === 'string' && variantId.includes('/')) {
+              // If it's a Shopify GraphQL ID (e.g., gid://shopify/ProductVariant/12345)
+              numericVariantId = variantId.split('/').pop();
+            } else if (typeof variantId === 'string') {
+              // If it's already a string but not a GraphQL ID
+              numericVariantId = variantId;
+            } else if (typeof variantId === 'number') {
+              // If it's a number
+              numericVariantId = variantId.toString();
+            } else {
+              // Fallback
+              console.error('Unknown variant ID format:', variantId);
+              resultContainer.innerHTML += `
+                <p>Couldn't generate checkout link automatically.</p>
+                <p><a href="${data.product.admin_url}" target="_blank">View product in Shopify admin</a></p>
+              `;
+              return;
+            }
+            
+            // Log the store URL
+            console.log('Admin URL:', data.product.admin_url);
+            
+            // Extract the hostname from admin URL
+            let shopDomain;
+            try {
+              shopDomain = new URL(data.product.admin_url).hostname.replace('admin.', '');
+            } catch (error) {
+              console.error('Error parsing admin URL:', error);
+              
+              // Try to extract domain directly if possible
+              if (typeof data.product.admin_url === 'string') {
+                const matches = data.product.admin_url.match(/https?:\/\/([^\/]+)/);
+                if (matches && matches[1]) {
+                  shopDomain = matches[1].replace('admin.', '');
+                } else {
+                  // Hardcoded fallback
+                  shopDomain = 'your-store.myshopify.com';
+                }
+              } else {
+                // Hardcoded fallback
+                shopDomain = 'your-store.myshopify.com';
+              }
+            }
             
             // Create checkout URL
-            const shopDomain = new URL(data.product.admin_url).hostname.replace('admin.', '');
             checkoutUrl = `https://${shopDomain}/cart/${numericVariantId}:1`;
+            console.log('Checkout URL:', checkoutUrl);
+            
+            // Add a link to the page in case automatic redirect doesn't work
+            resultContainer.innerHTML += `
+              <p><a href="${checkoutUrl}" target="_blank">Click here to go to checkout</a></p>
+            `;
             
             // Redirect to checkout after a short delay
             setTimeout(() => {
