@@ -56,23 +56,51 @@ export async function handler(event, context) {
     let shopDomain = process.env.REACT_APP_SHOPIFY_STORE_DOMAIN || 
                      process.env.SHOPIFY_STORE_DOMAIN ||
                      process.env.SHOPIFY_DOMAIN;
-                     
+    
+    // Check for authentication credentials - we support two methods:
+    // 1. Single access token
+    // 2. API key + API secret                 
     let accessToken = process.env.SHOPIFY_ACCESS_TOKEN || 
                       process.env.SHOPIFY_API_TOKEN ||
                       process.env.SHOPIFY_API_ACCESS_TOKEN;
     
-    // Log the domain without exposing the token                  
-    console.log('Shopify domain variable check:', { 
-      'REACT_APP_SHOPIFY_STORE_DOMAIN': !!process.env.REACT_APP_SHOPIFY_STORE_DOMAIN,
-      'SHOPIFY_STORE_DOMAIN': !!process.env.SHOPIFY_STORE_DOMAIN,
-      'SHOPIFY_DOMAIN': !!process.env.SHOPIFY_DOMAIN,
-      'Using value': shopDomain
+    let apiKey = process.env.REACT_APP_SHOPIFY_API_KEY || 
+                process.env.SHOPIFY_API_KEY;
+                
+    let apiSecret = process.env.REACT_APP_SHOPIFY_API_SECRET || 
+                   process.env.SHOPIFY_API_SECRET;
+    
+    // Store auth credentials for use in helper functions
+    global.shopifyAuth = {
+      accessToken,
+      apiKey,
+      apiSecret
+    };
+    
+    // Log the environment variables we found (without values)
+    console.log('Shopify environment variable check:', { 
+      'Domain variables': {
+        'REACT_APP_SHOPIFY_STORE_DOMAIN': !!process.env.REACT_APP_SHOPIFY_STORE_DOMAIN,
+        'SHOPIFY_STORE_DOMAIN': !!process.env.SHOPIFY_STORE_DOMAIN,
+        'SHOPIFY_DOMAIN': !!process.env.SHOPIFY_DOMAIN,
+        'Using value': shopDomain
+      },
+      'Auth variables': {
+        'Has Access Token': !!accessToken,
+        'Has API Key': !!apiKey,
+        'Has API Secret': !!apiSecret,
+        'Auth Method': accessToken ? 'Using access token' : (apiKey && apiSecret ? 'Using API key + secret' : 'No valid auth method')
+      }
     });
     
-    if (!shopDomain || !accessToken) {
+    // Check if we have a domain and at least one auth method
+    const hasValidAuth = accessToken || (apiKey && apiSecret);
+    
+    if (!shopDomain || !hasValidAuth) {
       console.error('Missing environment variables:', { 
         hasDomain: !!shopDomain, 
-        hasToken: !!accessToken 
+        hasAccessToken: !!accessToken,
+        hasApiKeyAndSecret: !!(apiKey && apiSecret)
       });
       
       return {
@@ -81,7 +109,10 @@ export async function handler(event, context) {
         body: JSON.stringify({ 
           error: 'Missing Shopify credentials in environment variables',
           missingDomain: !shopDomain,
-          missingToken: !accessToken
+          missingAuth: !hasValidAuth,
+          availableVars: Object.keys(process.env)
+            .filter(key => key.includes('SHOPIFY') || key.includes('REACT_APP_SHOPIFY'))
+            .filter(key => !key.toLowerCase().includes('token') && !key.toLowerCase().includes('secret') && !key.toLowerCase().includes('key'))
         })
       };
     }
@@ -210,12 +241,46 @@ async function createShopifyProduct(shopDomain, accessToken, productData) {
       console.warn('WARNING: Product variants may be incomplete:', JSON.stringify(productData.variants));
     }
     
+    // Determine which authentication method to use
+    let authHeaders = {};
+    
+    // First try the passed accessToken (for backward compatibility)
+    if (accessToken) {
+      console.log('Using provided access token authentication');
+      authHeaders = {
+        'X-Shopify-Access-Token': accessToken
+      };
+    } 
+    // Then try the global auth object we created earlier
+    else if (global.shopifyAuth) {
+      if (global.shopifyAuth.accessToken) {
+        // Method 1: Access Token Authentication
+        console.log('Using global access token authentication');
+        authHeaders = {
+          'X-Shopify-Access-Token': global.shopifyAuth.accessToken
+        };
+      } else if (global.shopifyAuth.apiKey && global.shopifyAuth.apiSecret) {
+        // Method 2: API Key + Secret Authentication
+        console.log('Using global API key and secret authentication');
+        const authString = Buffer.from(`${global.shopifyAuth.apiKey}:${global.shopifyAuth.apiSecret}`).toString('base64');
+        authHeaders = {
+          'Authorization': `Basic ${authString}`
+        };
+      }
+    }
+    
+    if (Object.keys(authHeaders).length === 0) {
+      throw new Error('No valid authentication method available');
+    }
+    
+    console.log('Using auth headers:', Object.keys(authHeaders));
+    
     // Create the product
     const response = await fetch(url, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'X-Shopify-Access-Token': accessToken
+        ...authHeaders
       },
       body: JSON.stringify({ product: productData })
     });
@@ -252,7 +317,8 @@ async function createShopifyProduct(shopDomain, accessToken, productData) {
 async function attachImageToProduct(shopDomain, accessToken, productId, imageUrl) {
   try {
     console.log(`Attaching image from URL to product ${productId}`);
-    const url = `https://${shopDomain}/admin/api/2023-07/products/${productId}/images.json`;
+    const apiVersion = process.env.SHOPIFY_API_VERSION || '2023-07';
+    const url = `https://${shopDomain}/admin/api/${apiVersion}/products/${productId}/images.json`;
     console.log(`Making request to: ${url}`);
     
     // For URL-based uploads, the URL must be publicly accessible
@@ -269,11 +335,45 @@ async function attachImageToProduct(shopDomain, accessToken, productId, imageUrl
     
     console.log(`Using image URL: ${imageUrl.substring(0, 50)}...`);
     
+    // Determine which authentication method to use
+    let authHeaders = {};
+    
+    // First try the passed accessToken (for backward compatibility)
+    if (accessToken) {
+      console.log('Using provided access token authentication');
+      authHeaders = {
+        'X-Shopify-Access-Token': accessToken
+      };
+    } 
+    // Then try the global auth object we created earlier
+    else if (global.shopifyAuth) {
+      if (global.shopifyAuth.accessToken) {
+        // Method 1: Access Token Authentication
+        console.log('Using global access token authentication');
+        authHeaders = {
+          'X-Shopify-Access-Token': global.shopifyAuth.accessToken
+        };
+      } else if (global.shopifyAuth.apiKey && global.shopifyAuth.apiSecret) {
+        // Method 2: API Key + Secret Authentication
+        console.log('Using global API key and secret authentication');
+        const authString = Buffer.from(`${global.shopifyAuth.apiKey}:${global.shopifyAuth.apiSecret}`).toString('base64');
+        authHeaders = {
+          'Authorization': `Basic ${authString}`
+        };
+      }
+    }
+    
+    if (Object.keys(authHeaders).length === 0) {
+      throw new Error('No valid authentication method available');
+    }
+    
+    console.log('Using auth headers for image upload:', Object.keys(authHeaders));
+    
     const response = await fetch(url, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'X-Shopify-Access-Token': accessToken
+        ...authHeaders
       },
       body: JSON.stringify(imageData)
     });
@@ -325,7 +425,8 @@ async function attachBase64ImageToProduct(shopDomain, accessToken, productId, ba
       console.log('Image is large, treating as potentially problematic');
     }
     
-    const url = `https://${shopDomain}/admin/api/2023-07/products/${productId}/images.json`;
+    const apiVersion = process.env.SHOPIFY_API_VERSION || '2023-07';
+    const url = `https://${shopDomain}/admin/api/${apiVersion}/products/${productId}/images.json`;
     console.log(`Making request to: ${url}`);
     
     const imageData = {
@@ -339,11 +440,45 @@ async function attachBase64ImageToProduct(shopDomain, accessToken, productId, ba
     // Log request size without showing actual image data
     console.log(`Request body size: ${JSON.stringify(imageData).length - finalBase64Data.length + 100}B + image data`);
     
+    // Determine which authentication method to use
+    let authHeaders = {};
+    
+    // First try the passed accessToken (for backward compatibility)
+    if (accessToken) {
+      console.log('Using provided access token authentication');
+      authHeaders = {
+        'X-Shopify-Access-Token': accessToken
+      };
+    } 
+    // Then try the global auth object we created earlier
+    else if (global.shopifyAuth) {
+      if (global.shopifyAuth.accessToken) {
+        // Method 1: Access Token Authentication
+        console.log('Using global access token authentication');
+        authHeaders = {
+          'X-Shopify-Access-Token': global.shopifyAuth.accessToken
+        };
+      } else if (global.shopifyAuth.apiKey && global.shopifyAuth.apiSecret) {
+        // Method 2: API Key + Secret Authentication
+        console.log('Using global API key and secret authentication');
+        const authString = Buffer.from(`${global.shopifyAuth.apiKey}:${global.shopifyAuth.apiSecret}`).toString('base64');
+        authHeaders = {
+          'Authorization': `Basic ${authString}`
+        };
+      }
+    }
+    
+    if (Object.keys(authHeaders).length === 0) {
+      throw new Error('No valid authentication method available');
+    }
+    
+    console.log('Using auth headers for base64 image upload:', Object.keys(authHeaders));
+    
     const response = await fetch(url, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'X-Shopify-Access-Token': accessToken
+        ...authHeaders
       },
       body: JSON.stringify(imageData)
     });

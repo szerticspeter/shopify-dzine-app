@@ -42,23 +42,44 @@ export async function handler(event, context) {
     let shopDomain = process.env.REACT_APP_SHOPIFY_STORE_DOMAIN || 
                      process.env.SHOPIFY_STORE_DOMAIN ||
                      process.env.SHOPIFY_DOMAIN;
-                     
+    
+    // Check for authentication credentials - we support two methods:
+    // 1. Single access token
+    // 2. API key + API secret                 
     let accessToken = process.env.SHOPIFY_ACCESS_TOKEN || 
                       process.env.SHOPIFY_API_TOKEN ||
                       process.env.SHOPIFY_API_ACCESS_TOKEN;
     
-    // Log the domain without exposing the token                  
-    console.log('Shopify domain variable check:', { 
-      'REACT_APP_SHOPIFY_STORE_DOMAIN': !!process.env.REACT_APP_SHOPIFY_STORE_DOMAIN,
-      'SHOPIFY_STORE_DOMAIN': !!process.env.SHOPIFY_STORE_DOMAIN,
-      'SHOPIFY_DOMAIN': !!process.env.SHOPIFY_DOMAIN,
-      'Using value': shopDomain
+    let apiKey = process.env.REACT_APP_SHOPIFY_API_KEY || 
+                process.env.SHOPIFY_API_KEY;
+                
+    let apiSecret = process.env.REACT_APP_SHOPIFY_API_SECRET || 
+                   process.env.SHOPIFY_API_SECRET;
+    
+    // Log the environment variables we found (without values)
+    console.log('Shopify environment variable check:', { 
+      'Domain variables': {
+        'REACT_APP_SHOPIFY_STORE_DOMAIN': !!process.env.REACT_APP_SHOPIFY_STORE_DOMAIN,
+        'SHOPIFY_STORE_DOMAIN': !!process.env.SHOPIFY_STORE_DOMAIN,
+        'SHOPIFY_DOMAIN': !!process.env.SHOPIFY_DOMAIN,
+        'Using value': shopDomain
+      },
+      'Auth variables': {
+        'Has Access Token': !!accessToken,
+        'Has API Key': !!apiKey,
+        'Has API Secret': !!apiSecret,
+        'Auth Method': accessToken ? 'Using access token' : (apiKey && apiSecret ? 'Using API key + secret' : 'No valid auth method')
+      }
     });
     
-    if (!shopDomain || !accessToken) {
+    // Check if we have a domain and at least one auth method
+    const hasValidAuth = accessToken || (apiKey && apiSecret);
+    
+    if (!shopDomain || !hasValidAuth) {
       console.error('Missing environment variables:', { 
         hasDomain: !!shopDomain, 
-        hasToken: !!accessToken 
+        hasAccessToken: !!accessToken,
+        hasApiKeyAndSecret: !!(apiKey && apiSecret)
       });
       
       return {
@@ -67,7 +88,10 @@ export async function handler(event, context) {
         body: JSON.stringify({ 
           error: 'Missing Shopify credentials in environment variables',
           missingDomain: !shopDomain,
-          missingToken: !accessToken
+          missingAuth: !hasValidAuth,
+          availableVars: Object.keys(process.env)
+            .filter(key => key.includes('SHOPIFY') || key.includes('REACT_APP_SHOPIFY'))
+            .filter(key => !key.toLowerCase().includes('token') && !key.toLowerCase().includes('secret') && !key.toLowerCase().includes('key'))
         })
       };
     }
@@ -93,11 +117,32 @@ export async function handler(event, context) {
     const url = `https://${shopDomain}/admin/api/${apiVersion}/products.json?limit=10`;
     console.log(`Making API request to: ${url}`);
     
+    // Determine which authentication method to use
+    let authHeaders = {};
+    
+    if (accessToken) {
+      // Method 1: Access Token Authentication
+      console.log('Using access token authentication');
+      authHeaders = {
+        'X-Shopify-Access-Token': accessToken
+      };
+    } else if (apiKey && apiSecret) {
+      // Method 2: API Key + Secret Authentication
+      console.log('Using API key and secret authentication');
+      const authString = Buffer.from(`${apiKey}:${apiSecret}`).toString('base64');
+      authHeaders = {
+        'Authorization': `Basic ${authString}`
+      };
+    } else {
+      throw new Error('No valid authentication method available');
+    }
+    
     // Make the request to Shopify API
+    console.log('Using auth headers:', Object.keys(authHeaders));
     const response = await fetch(url, {
       method: 'GET',
       headers: {
-        'X-Shopify-Access-Token': accessToken,
+        ...authHeaders,
         'Content-Type': 'application/json'
       }
     });
