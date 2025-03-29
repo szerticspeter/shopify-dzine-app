@@ -1026,12 +1026,37 @@ body {
   box-shadow: 0 5px 15px rgba(16, 185, 129, 0.3);
   letter-spacing: 0.5px;
   margin-top: 20px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .crop-button:hover {
   transform: translateY(-3px);
   box-shadow: 0 8px 20px rgba(16, 185, 129, 0.4);
   background: linear-gradient(135deg, #059669 0%, #047857 100%);
+}
+
+.crop-button:disabled {
+  background: linear-gradient(135deg, #7acaa2 0%, #80b09f 100%);
+  cursor: not-allowed;
+  transform: none;
+  box-shadow: 0 2px 5px rgba(16, 185, 129, 0.1);
+}
+
+.crop-button .spinner {
+  width: 20px;
+  height: 20px;
+  border: 3px solid rgba(255, 255, 255, 0.3);
+  border-top: 3px solid #fff;
+  border-radius: 50%;
+  margin-right: 8px;
+  animation: crop-spin 1s linear infinite;
+}
+
+@keyframes crop-spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
 }
 
 .reset-button {

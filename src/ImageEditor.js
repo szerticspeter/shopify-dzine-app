@@ -635,8 +635,8 @@ const ImageEditor = () => {
 
   // Removed wheel handler as we're removing the zoom feature
 
-  // Crop the image to the printable area
-  const cropImage = () => {
+  // Crop the image to the printable area and proceed to Shopify checkout
+  const cropImage = async () => {
     if (!canvasRef.current || !imageRef.current || printableCorners.length !== 4) return;
     
     const canvas = canvasRef.current;
@@ -673,10 +673,120 @@ const ImageEditor = () => {
     // Convert the temporary canvas to a data URL
     const croppedImageData = tempCanvas.toDataURL('image/png');
     
-    // For now, just open the cropped image in a new tab
-    // In a production app, you would save this or proceed to checkout
-    const newTab = window.open();
-    newTab.document.write(`<img src="${croppedImageData}" alt="Cropped Image"/>`);
+    try {
+      // Show loading state
+      const cropButton = document.querySelector('.crop-button');
+      const originalButtonText = cropButton.innerHTML;
+      cropButton.disabled = true;
+      cropButton.innerHTML = '<span class="spinner"></span>Processing...';
+      
+      // Step 1: Save the cropped image using the serverless function
+      console.log('Saving cropped image...');
+      const saveResponse = await fetch('/.netlify/functions/saveEditedImage', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          imageData: croppedImageData,
+          productType: 'canvas'
+        })
+      });
+      
+      if (!saveResponse.ok) {
+        throw new Error('Failed to save the image');
+      }
+      
+      const saveResult = await saveResponse.json();
+      console.log('Image saved:', saveResult);
+      
+      // Step 2: Create a Shopify product with the saved image
+      console.log('Creating Shopify product...');
+      const productData = {
+        title: 'Custom Canvas Design',
+        description: 'Custom designed canvas created with Dzine.ai',
+        price: '30.00', // Fixed price of $30 USD
+        imageUrl: saveResult.imageUrl || croppedImageData // Use the URL from saveEditedImage or fallback to raw data
+      };
+      
+      // Log whether we're using a URL or base64 data
+      if (productData.imageUrl.startsWith('data:')) {
+        console.log('Using base64 image data for product creation');
+      } else {
+        console.log('Using URL for product creation:', productData.imageUrl.substring(0, 50) + '...');
+      }
+      
+      const createResponse = await fetch('/.netlify/functions/createShopifyProduct', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(productData)
+      });
+      
+      if (!createResponse.ok) {
+        throw new Error('Failed to create Shopify product');
+      }
+      
+      const createResult = await createResponse.json();
+      console.log('Product created:', createResult);
+      
+      // Step 3: Handle Shopify checkout - build checkout URL
+      let checkoutUrl;
+      
+      if (createResult.product && createResult.product.variants && createResult.product.variants.length > 0) {
+        // Get the variant ID from the response
+        const variantId = createResult.product.variants[0].id;
+        
+        // Extract numeric variant ID
+        let numericVariantId;
+        if (typeof variantId === 'string' && variantId.includes('/')) {
+          // If it's a Shopify GraphQL ID (e.g., gid://shopify/ProductVariant/12345)
+          numericVariantId = variantId.split('/').pop();
+        } else {
+          numericVariantId = String(variantId);
+        }
+        
+        // Extract store domain
+        let shopDomain;
+        try {
+          shopDomain = new URL(createResult.product.admin_url).hostname.replace('admin.', '');
+        } catch (error) {
+          // Try to extract domain directly
+          const matches = createResult.product.admin_url.match(/https?:\/\/([^\/]+)/);
+          if (matches && matches[1]) {
+            shopDomain = matches[1].replace('admin.', '');
+          } else {
+            // Use environment variable as fallback
+            shopDomain = process.env.REACT_APP_SHOPIFY_STORE_DOMAIN || 'your-store.myshopify.com';
+          }
+        }
+        
+        // Create checkout URL - redirect directly to checkout
+        const productHandle = createResult.product.handle || createResult.product.title.toLowerCase().replace(/[^a-z0-9]+/g, '-');
+        
+        // Prefer direct checkout URL if possible
+        checkoutUrl = `https://${shopDomain}/cart/${numericVariantId}:1?checkout=direct`;
+        
+        // Alternative: product page
+        const productUrl = `https://${shopDomain}/products/${productHandle}`;
+        
+        console.log('Redirecting to checkout:', checkoutUrl);
+        window.location.href = checkoutUrl;
+      } else {
+        throw new Error('No product variant found in the response');
+      }
+    } catch (error) {
+      console.error('Error during checkout process:', error);
+      alert(`There was an error processing your order: ${error.message}`);
+      
+      // Reset button state
+      const cropButton = document.querySelector('.crop-button');
+      if (cropButton) {
+        cropButton.disabled = false;
+        cropButton.innerHTML = 'Crop & Continue';
+      }
+    }
   };
 
   // Reset image to centered in the printable area

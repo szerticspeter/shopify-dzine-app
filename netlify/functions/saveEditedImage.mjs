@@ -63,27 +63,54 @@ export async function handler(event, context) {
   console.log("Received image data for product type:", productType);
 
   try {
-    // For a simple implementation, we'll simulate saving to an image hosting service
-    // In a real implementation, you would use Cloudinary, AWS S3, or another storage service
+    // In a production environment, you would implement an actual image upload to a 
+    // service like Cloudinary, AWS S3, or using the Shopify Admin API directly
     
-    // Here we'll simply return a mock URL
-    // In a real implementation, you would upload the image and get a real URL back
-    const mockImageId = `edited-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
-    const mockImageUrl = `https://dzine-ai-mockup.netlify.app/edited-images/${mockImageId}.png`;
+    // For this implementation, we'll check for two scenarios:
+    // 1. If in development environment, we'll use the base64 data directly
+    // 2. If in production, we'll still generate a mock URL but also pass the base64 data
+    // back to be used by the next function in the workflow
     
-    console.log("Generated mock image URL:", mockImageUrl);
+    const imageId = `edited-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
+    // Netlify environment detection
+    const isProduction = process.env.CONTEXT === 'production';
     
-    // For demonstration purposes, we're returning a mock URL
-    // In a real implementation, you would replace this with an actual upload
-    return {
-      statusCode: 200,
-      headers,
-      body: JSON.stringify({
-        success: true,
-        imageUrl: mockImageUrl,
-        message: "Image saved successfully (mock implementation)"
-      })
-    };
+    // Generate a response appropriate for the environment
+    if (isProduction) {
+      // In production, we would implement a real storage solution here
+      // For now, we'll return a mock URL with site domain
+      const mockImageUrl = `https://${process.env.URL || 'dzine-ai-app.netlify.app'}/edited-images/${imageId}.png`;
+      console.log("Generated production mock image URL:", mockImageUrl);
+      
+      return {
+        statusCode: 200,
+        headers,
+        body: JSON.stringify({
+          success: true,
+          imageUrl: mockImageUrl,
+          // Include truncated imageData in response so next function can use it
+          imageData: imageData.substring(0, 50) + '...[truncated]',
+          message: "Image processed successfully. For a complete implementation, implement image storage."
+        })
+      };
+    } else {
+      // In development, we can just pass through the image data
+      // This allows local testing without a storage service
+      console.log("Development mode: Passing base64 image data through");
+      
+      return {
+        statusCode: 200,
+        headers,
+        body: JSON.stringify({
+          success: true,
+          // In dev, we can just use the original base64 data
+          imageUrl: imageData,
+          // Include a simple mock URL for logging/testing
+          mockUrl: `http://localhost:8888/edited-images/${imageId}.png`,
+          message: "Image processed in development mode. Using base64 data directly."
+        })
+      };
+    }
   } catch (error) {
     console.error("Error saving image:", error);
     return {
