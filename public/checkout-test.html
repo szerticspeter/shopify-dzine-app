@@ -200,7 +200,8 @@
         
         // Build checkout URL
         const cleanDomain = shopDomain.replace(/https?:\/\//i, '').replace(/\/.*$/i, '');
-        const checkoutUrl = `https://${cleanDomain}/cart/${variantId}:1?checkout=direct`;
+        // Use standard cart URL (this will redirect to checkout)
+        const checkoutUrl = `https://${cleanDomain}/cart/${variantId}:1`;
         
         // Show the URL before redirecting
         document.getElementById('directCheckoutOutput').textContent = `Generated URL: ${checkoutUrl}`;

@@ -275,7 +275,8 @@
                 }
                 
                 const cartUrl = `https://${shopDomain}/cart/${formattedVariantId}:1`;
-                const checkoutUrl = `${cartUrl}?checkout=direct`;
+                // The cart URL already redirects to checkout
+                const checkoutUrl = cartUrl;
                 
                 linksHtml += `
                   <a href="${cartUrl}" target="_blank" class="link-button">View Cart</a>
@@ -383,7 +384,8 @@
                 }
                 
                 const cartUrl = `https://${shopDomain}/cart/${formattedVariantId}:1`;
-                const checkoutUrl = `${cartUrl}?checkout=direct`;
+                // The cart URL already redirects to checkout
+                const checkoutUrl = cartUrl;
                 
                 linksHtml += `
                   <a href="${cartUrl}" target="_blank" class="link-button">View Cart</a>

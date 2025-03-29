@@ -765,8 +765,8 @@ const ImageEditor = () => {
         // Create checkout URL - redirect directly to checkout
         const productHandle = createResult.product.handle || createResult.product.title.toLowerCase().replace(/[^a-z0-9]+/g, '-');
         
-        // Prefer direct checkout URL if possible
-        checkoutUrl = `https://${shopDomain}/cart/${numericVariantId}:1?checkout=direct`;
+        // Create cart URL (redirects to checkout)
+        checkoutUrl = `https://${shopDomain}/cart/${numericVariantId}:1`;
         
         // Alternative: product page
         const productUrl = `https://${shopDomain}/products/${productHandle}`;

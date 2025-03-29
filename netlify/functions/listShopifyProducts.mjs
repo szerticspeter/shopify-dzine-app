@@ -189,7 +189,7 @@ export async function handler(event, context) {
         title: variant.title,
         price: variant.price,
         sku: variant.sku,
-        checkout_url: `https://${shopDomain}/cart/${variant.id}:1?checkout=direct`,
+        checkout_url: `https://${shopDomain}/cart/${variant.id}:1`,
         cart_url: `https://${shopDomain}/cart/${variant.id}:1`
       })),
       images: product.images ? product.images.map(image => ({
