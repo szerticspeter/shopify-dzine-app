@@ -995,6 +995,60 @@ body {
 
 .editor-actions {
   margin: 30px 0;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 20px;
+}
+
+.pricing-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+}
+
+.country-selector {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.country-selector label {
+  font-weight: 600;
+  color: #333;
+}
+
+.country-selector select {
+  padding: 8px 12px;
+  border-radius: 4px;
+  border: 1px solid #ccc;
+  background-color: white;
+  font-size: 1rem;
+  min-width: 180px;
+}
+
+.price-display {
+  background-color: #f5f5f5;
+  padding: 8px 15px;
+  border-radius: 4px;
+  margin-top: 5px;
+  border: 1px solid #e0e0e0;
+}
+
+.price-label {
+  font-weight: 600;
+  margin-right: 4px;
+}
+
+.price-value {
+  font-size: 1.1rem;
+  color: #2c3e50;
+}
+
+.loading-price {
+  font-style: italic;
+  color: #7f8c8d;
 }
 
 .primary-button {

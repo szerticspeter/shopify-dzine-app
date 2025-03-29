@@ -1,9 +1,57 @@
 import React, { useState, useEffect, useRef } from 'react';
 import './App.css';
+import { getProdigiPriceQuote, calculatePriceWithMarkup } from './utils/prodigiApi';
 
 // Preload the canvas image
 const preloadedCanvasImage = new Image();
 preloadedCanvasImage.src = '/images/products/canvas16x20.png';
+
+// Country selector component
+const CountrySelector = ({ selectedCountry, onCountryChange }) => {
+  // List of common countries to show at the top
+  const popularCountries = ['US', 'UK', 'CA', 'AU', 'DE', 'FR'];
+  
+  // All countries
+  const countries = [
+    {code: 'US', name: 'United States'},
+    {code: 'UK', name: 'United Kingdom'},
+    {code: 'CA', name: 'Canada'},
+    {code: 'AU', name: 'Australia'},
+    {code: 'DE', name: 'Germany'},
+    {code: 'FR', name: 'France'},
+    {code: 'ES', name: 'Spain'},
+    {code: 'IT', name: 'Italy'},
+    {code: 'JP', name: 'Japan'},
+    {code: 'NL', name: 'Netherlands'},
+    {code: 'SE', name: 'Sweden'},
+    {code: 'NO', name: 'Norway'},
+    {code: 'DK', name: 'Denmark'},
+    {code: 'FI', name: 'Finland'},
+    {code: 'IE', name: 'Ireland'},
+    {code: 'NZ', name: 'New Zealand'},
+    {code: 'SG', name: 'Singapore'},
+    {code: 'BE', name: 'Belgium'},
+    {code: 'AT', name: 'Austria'},
+    {code: 'CH', name: 'Switzerland'}
+  ];
+  
+  return (
+    <div className="country-selector">
+      <label htmlFor="country-select">Ship to:</label>
+      <select 
+        id="country-select" 
+        value={selectedCountry}
+        onChange={(e) => onCountryChange(e.target.value)}
+      >
+        {countries.map(country => (
+          <option key={country.code} value={country.code}>
+            {country.name}
+          </option>
+        ))}
+      </select>
+    </div>
+  );
+};
 
 // Recovery notification component
 const RecoveryNotification = ({ productInfo, onDismiss }) => {
@@ -42,6 +90,10 @@ const ImageEditor = () => {
   const [activeCorner, setActiveCorner] = useState(null);
   const [showRecovery, setShowRecovery] = useState(false);
   const [recoveryInfo, setRecoveryInfo] = useState(null);
+  const [selectedCountry, setSelectedCountry] = useState('US');
+  const [priceQuote, setPriceQuote] = useState(null);
+  const [pricingInfo, setPricingInfo] = useState(null);
+  const [isLoadingPrice, setIsLoadingPrice] = useState(false);
   const canvasRef = useRef(null);
   const imageRef = useRef(null);
   const productImageRef = useRef(null);
@@ -70,7 +122,36 @@ const ImageEditor = () => {
     } catch (error) {
       console.error('Error checking for recovery data:', error);
     }
+    
+    // Fetch initial price quote for default country (US)
+    fetchPriceQuote('US');
   }, []);
+  
+  // Fetch price quote when country changes
+  useEffect(() => {
+    fetchPriceQuote(selectedCountry);
+  }, [selectedCountry]);
+  
+  // Fetch price quote from Prodigi API
+  const fetchPriceQuote = async (countryCode) => {
+    try {
+      setIsLoadingPrice(true);
+      
+      // Get pricing quote for the selected country
+      const quote = await getProdigiPriceQuote(countryCode);
+      setPriceQuote(quote);
+      
+      // Calculate the price with markup
+      const pricingWithMarkup = calculatePriceWithMarkup(quote, 20); // 20% markup
+      setPricingInfo(pricingWithMarkup);
+      
+      console.log(`Price quote for ${countryCode}:`, pricingWithMarkup);
+    } catch (error) {
+      console.error('Error fetching price quote:', error);
+    } finally {
+      setIsLoadingPrice(false);
+    }
+  };
 
   // Canvas dimensions - maintain the product image aspect ratio
   const CANVAS_WIDTH = 800;
@@ -763,7 +844,13 @@ const ImageEditor = () => {
       const urlParams = new URLSearchParams(window.location.search);
       const productTitle = urlParams.get('title') || 'Custom Canvas Design';
       const productDesc = urlParams.get('description') || 'Custom designed canvas created with Dzine.ai';
-      const productPrice = urlParams.get('price') || '30.00';
+      
+      // Use the price from Prodigi API with markup if available
+      let productPrice = urlParams.get('price') || '30.00';
+      if (pricingInfo && pricingInfo.finalPrice && pricingInfo.finalPrice.total) {
+        productPrice = pricingInfo.finalPrice.total;
+        console.log(`Using dynamic pricing for ${selectedCountry}: ${productPrice} ${pricingInfo.currency}`);
+      }
       
       const productData = {
         title: productTitle,
@@ -775,6 +862,12 @@ const ImageEditor = () => {
           {
             key: "source",
             value: "dzine_app",
+            type: "single_line_text_field",
+            namespace: "custom"
+          },
+          {
+            key: "shipToCountry",
+            value: selectedCountry,
             type: "single_line_text_field",
             namespace: "custom"
           }
@@ -997,6 +1090,26 @@ const ImageEditor = () => {
       </div>
       
       <div className="editor-actions">
+        <div className="pricing-container">
+          <CountrySelector 
+            selectedCountry={selectedCountry}
+            onCountryChange={setSelectedCountry}
+          />
+          {pricingInfo && (
+            <div className="price-display">
+              <span className="price-label">Price: </span>
+              <span className="price-value">
+                {isLoadingPrice ? (
+                  <span className="loading-price">Loading...</span>
+                ) : (
+                  <span>
+                    {pricingInfo.finalPrice.total} {pricingInfo.currency}
+                  </span>
+                )}
+              </span>
+            </div>
+          )}
+        </div>
         <button className="crop-button" onClick={cropImage}>Crop & Continue</button>
       </div>
     </div>

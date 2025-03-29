@@ -1,0 +1,82 @@
+functionsDirectory = "/Users/Peti/Documents/Coding/shopify-dzine-app/netlify/functions"
+functionsDirectoryOrigin = "config-v1"
+redirectsOrigin = "config"
+headers = []
+
+[build]
+publish = "/Users/Peti/Documents/Coding/shopify-dzine-app/build"
+publishOrigin = "config"
+commandOrigin = "config"
+command = "npm run build"
+functions = "/Users/Peti/Documents/Coding/shopify-dzine-app/netlify/functions"
+
+[build.environment]
+NODE_VERSION = "18"
+SECRETS_SCAN_ENABLED = "true"
+SECRETS_SCAN_OMIT_KEYS = "REACT_APP_DZINE_API_KEY"
+
+[build.processing]
+
+[build.processing.css]
+bundle = true
+minify = true
+
+[build.processing.html]
+pretty_urls = true
+
+[build.processing.images]
+compress = true
+
+[build.processing.js]
+bundle = true
+minify = true
+
+[build.services]
+
+[functions]
+
+[functions."*"]
+included_files = ["netlify/functions/package.json"]
+node_bundler = "esbuild"
+
+[[plugins]]
+origin = "config"
+package = "@netlify/plugin-functions-install-core"
+
+[plugins.inputs]
+
+[[redirects]]
+from = "/shopify-test-direct"
+to = "/shopify-test-direct.html"
+status = 200.0
+force = false
+
+[redirects.query]
+
+[redirects.conditions]
+
+[redirects.headers]
+
+[[redirects]]
+from = "/shopify-test"
+to = "/shopify-test.html"
+status = 200.0
+force = false
+
+[redirects.query]
+
+[redirects.conditions]
+
+[redirects.headers]
+
+[[redirects]]
+from = "/*"
+to = "/index.html"
+status = 200.0
+force = false
+
+[redirects.query]
+
+[redirects.conditions]
+
+[redirects.headers]

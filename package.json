@@ -1,6 +1,6 @@
 {
   "name": "dzine-prodigi-app",
-  "version": "0.5.0",
+  "version": "0.5.1",
   "private": true,
   "dependencies": {
     "node-fetch": "^3.3.2",
