@@ -5,6 +5,34 @@ import './App.css';
 const preloadedCanvasImage = new Image();
 preloadedCanvasImage.src = '/images/products/canvas16x20.png';
 
+// Recovery notification component
+const RecoveryNotification = ({ productInfo, onDismiss }) => {
+  return (
+    <div className="recovery-notification">
+      <div className="recovery-content">
+        <h3>Resume Your Recent Order</h3>
+        <p>You have a recent checkout that was interrupted. Would you like to return to it?</p>
+        <div className="recovery-actions">
+          <button 
+            className="recovery-action-button primary"
+            onClick={() => {
+              window.location.href = `https://${productInfo.domain}/cart/${productInfo.variantId}:1`;
+            }}
+          >
+            Return to Checkout
+          </button>
+          <button 
+            className="recovery-action-button secondary"
+            onClick={onDismiss}
+          >
+            Start New Design
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
 const ImageEditor = () => {
   const [image, setImage] = useState(null);
   const [productImage, setProductImage] = useState(null);
@@ -12,10 +40,37 @@ const ImageEditor = () => {
   const [isDragging, setIsDragging] = useState(false);
   const [isResizing, setIsResizing] = useState(false);
   const [activeCorner, setActiveCorner] = useState(null);
+  const [showRecovery, setShowRecovery] = useState(false);
+  const [recoveryInfo, setRecoveryInfo] = useState(null);
   const canvasRef = useRef(null);
   const imageRef = useRef(null);
   const productImageRef = useRef(null);
   const containerRef = useRef(null);
+  
+  // Check for any interrupted checkout on component mount
+  useEffect(() => {
+    try {
+      const storedInfo = sessionStorage.getItem('lastCreatedProduct');
+      if (storedInfo) {
+        const productInfo = JSON.parse(storedInfo);
+        
+        // Only show recovery for recent sessions (within last 2 hours)
+        const timestamp = new Date(productInfo.timestamp);
+        const now = new Date();
+        const twoHoursAgo = new Date(now.getTime() - (2 * 60 * 60 * 1000)); // 2 hours in milliseconds
+        
+        if (timestamp > twoHoursAgo) {
+          setRecoveryInfo(productInfo);
+          setShowRecovery(true);
+        } else {
+          // Clear old recovery data
+          sessionStorage.removeItem('lastCreatedProduct');
+        }
+      }
+    } catch (error) {
+      console.error('Error checking for recovery data:', error);
+    }
+  }, []);
 
   // Canvas dimensions - maintain the product image aspect ratio
   const CANVAS_WIDTH = 800;
@@ -702,11 +757,27 @@ const ImageEditor = () => {
       
       // Step 2: Create a Shopify product with the saved image
       console.log('Creating Shopify product...');
+      
+      // Get product details from URL parameters or use defaults
+      const urlParams = new URLSearchParams(window.location.search);
+      const productTitle = urlParams.get('title') || 'Custom Canvas Design';
+      const productDesc = urlParams.get('description') || 'Custom designed canvas created with Dzine.ai';
+      const productPrice = urlParams.get('price') || '30.00';
+      
       const productData = {
-        title: 'Custom Canvas Design',
-        description: 'Custom designed canvas created with Dzine.ai',
-        price: '30.00', // Fixed price of $30 USD
-        imageUrl: saveResult.imageUrl || croppedImageData // Use the URL from saveEditedImage or fallback to raw data
+        title: productTitle,
+        description: productDesc,
+        price: productPrice,
+        imageUrl: saveResult.imageUrl || croppedImageData, // Use the URL from saveEditedImage or fallback to raw data
+        // Add metadata to track the source of this product
+        metafields: [
+          {
+            key: "source",
+            value: "dzine_app",
+            type: "single_line_text_field",
+            namespace: "custom"
+          }
+        ]
       };
       
       // Log whether we're using a URL or base64 data
@@ -724,16 +795,24 @@ const ImageEditor = () => {
         body: JSON.stringify(productData)
       });
       
+      const createResponseText = await createResponse.text();
+      console.log('Raw product creation response:', createResponseText);
+      
       if (!createResponse.ok) {
-        throw new Error('Failed to create Shopify product');
+        throw new Error(`Failed to create Shopify product: ${createResponseText}`);
       }
       
-      const createResult = await createResponse.json();
+      let createResult;
+      try {
+        createResult = JSON.parse(createResponseText);
+      } catch (error) {
+        console.error('Failed to parse JSON response:', error);
+        throw new Error('Invalid response format from product creation API');
+      }
+      
       console.log('Product created:', createResult);
       
       // Step 3: Handle Shopify checkout - build checkout URL
-      let checkoutUrl;
-      
       if (createResult.product && createResult.product.variants && createResult.product.variants.length > 0) {
         // Get the variant ID from the response
         const variantId = createResult.product.variants[0].id;
@@ -765,13 +844,56 @@ const ImageEditor = () => {
         // Create checkout URL - redirect directly to checkout
         const productHandle = createResult.product.handle || createResult.product.title.toLowerCase().replace(/[^a-z0-9]+/g, '-');
         
-        // Create cart URL (redirects to checkout)
-        checkoutUrl = `https://${shopDomain}/cart/${numericVariantId}:1`;
+        // Check for custom redirect URL (for embedded apps or special scenarios)
+        const redirectUrl = urlParams.get('redirect');
+        let checkoutUrl;
         
-        // Alternative: product page
-        const productUrl = `https://${shopDomain}/products/${productHandle}`;
+        if (redirectUrl) {
+          // Handle custom redirect with placeholder substitution
+          checkoutUrl = redirectUrl
+            .replace('{variantId}', numericVariantId)
+            .replace('{productId}', createResult.product.id)
+            .replace('{productHandle}', productHandle);
+        } else {
+          // Standard Shopify checkout URL
+          checkoutUrl = `https://${shopDomain}/cart/${numericVariantId}:1`;
+        }
+        
+        // Allow product preview option
+        const previewMode = urlParams.get('preview') === 'true';
+        if (previewMode) {
+          const productUrl = `https://${shopDomain}/products/${productHandle}`;
+          
+          // Show a confirmation dialog with options
+          const confirmed = window.confirm(
+            'Your custom design has been created! Choose an action:\n\n' +
+            '- Click OK to view the product page\n' +
+            '- Click Cancel to proceed directly to checkout'
+          );
+          
+          if (confirmed) {
+            console.log('Redirecting to product page:', productUrl);
+            window.location.href = productUrl;
+            return;
+          }
+        }
         
         console.log('Redirecting to checkout:', checkoutUrl);
+        
+        // Store product info in session storage for potential recovery
+        try {
+          sessionStorage.setItem('lastCreatedProduct', JSON.stringify({
+            variantId: numericVariantId,
+            productId: createResult.product.id,
+            handle: productHandle,
+            domain: shopDomain,
+            timestamp: new Date().toISOString()
+          }));
+        } catch (err) {
+          console.error('Failed to store product info in session storage:', err);
+        }
+        
+        // Redirect to checkout
         window.location.href = checkoutUrl;
       } else {
         throw new Error('No product variant found in the response');
@@ -812,10 +934,24 @@ const ImageEditor = () => {
     });
   };
 
+  // Dismiss recovery notification and clear stored data
+  const dismissRecovery = () => {
+    setShowRecovery(false);
+    sessionStorage.removeItem('lastCreatedProduct');
+  };
+  
   return (
     <div className="editor-container">
       <h1>Image Editor</h1>
       <p>Drag your image to position it on the canvas. The image will be fitted to minimize cropping.</p>
+      
+      {/* Recovery notification */}
+      {showRecovery && recoveryInfo && (
+        <RecoveryNotification 
+          productInfo={recoveryInfo} 
+          onDismiss={dismissRecovery} 
+        />
+      )}
       
       <div className="canvas-container" ref={containerRef}>
         <canvas 

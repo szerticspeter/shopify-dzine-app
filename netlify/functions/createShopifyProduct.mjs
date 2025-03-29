@@ -30,11 +30,34 @@ export async function handler(event, context) {
   }
 
   try {
-    // Parse request body
-    const { title, description, price, imageUrl } = JSON.parse(event.body);
+    // Parse request body with error handling
+    let requestBody;
+    try {
+      requestBody = JSON.parse(event.body);
+    } catch (parseError) {
+      console.error('Failed to parse request body:', parseError, event.body);
+      return {
+        statusCode: 400,
+        headers,
+        body: JSON.stringify({ 
+          error: 'Invalid JSON in request body', 
+          details: parseError.message, 
+          receivedBody: event.body.length > 200 ? event.body.substring(0, 200) + '...' : event.body 
+        })
+      };
+    }
+    
+    const { title, description, price, imageUrl, metafields } = requestBody;
     
     // Log request for debugging
-    console.log('Creating product with:', { title, price, imageUrl: imageUrl.substring(0, 50) + '...' });
+    console.log('Creating product with:', { 
+      title, 
+      price, 
+      hasImage: !!imageUrl,
+      imageUrlType: imageUrl ? (imageUrl.startsWith('data:') ? 'base64' : 'URL') : 'none',
+      imageUrlLength: imageUrl ? imageUrl.length : 0,
+      hasMetafields: !!metafields
+    });
     
     // Validate required parameters
     if (!title || !price || !imageUrl) {
@@ -131,12 +154,16 @@ export async function handler(event, context) {
     
     console.log('Using Shopify domain:', shopDomain);
 
-    // Step 1: Create the product first
-    const productResponse = await createShopifyProduct(shopDomain, accessToken, {
+    // Get API version
+    const apiVersion = process.env.SHOPIFY_API_VERSION || '2023-07';
+
+    // Prepare product data
+    const productData = {
       title,
       body_html: description || '',
       vendor: 'Dzine.ai App',
       product_type: 'Custom Design',
+      status: 'active', // Ensure the product is set to active
       variants: [
         {
           price: price,
@@ -144,7 +171,10 @@ export async function handler(event, context) {
           inventory_quantity: 10
         }
       ]
-    });
+    };
+
+    // Step 1: Create the product first
+    const productResponse = await createShopifyProduct(shopDomain, accessToken, productData);
 
     // Step 2: If product created successfully, attach the image
     if (productResponse && productResponse.product && productResponse.product.id) {
@@ -152,7 +182,7 @@ export async function handler(event, context) {
       
       try {
         // Handle base64 data URLs directly
-        let imageData;
+        let imageResponse;
         
         if (imageUrl.startsWith('data:')) {
           // It's a Data URL (e.g., from canvas.toDataURL())
@@ -161,37 +191,47 @@ export async function handler(event, context) {
           const base64Data = imageUrl.split(',')[1];
           
           // Upload image to Shopify using base64 data
-          const imageResponse = await attachBase64ImageToProduct(
+          imageResponse = await attachBase64ImageToProduct(
             shopDomain, 
             accessToken, 
             productId, 
             base64Data,
             `dzine-custom-design-${Date.now()}.png`
           );
-          
-          // Return success with product and image data
-          return {
-            statusCode: 200,
-            headers,
-            body: JSON.stringify({
-              product: productResponse.product,
-              image: imageResponse.image
-            })
-          };
         } else {
           // It's a regular URL, use the original method
-          const imageResponse = await attachImageToProduct(shopDomain, accessToken, productId, imageUrl);
-          
-          // Return success with product and image data
-          return {
-            statusCode: 200,
-            headers,
-            body: JSON.stringify({
-              product: productResponse.product,
-              image: imageResponse.image
-            })
-          };
+          imageResponse = await attachImageToProduct(shopDomain, accessToken, productId, imageUrl);
         }
+        
+        // Step A: Add metafields if provided (after image is attached)
+        let metafieldsResult = null;
+        if (metafields && Array.isArray(metafields) && metafields.length > 0) {
+          try {
+            console.log(`Adding ${metafields.length} metafields to product ${productId}`);
+            metafieldsResult = await addMetafieldsToProduct(
+              shopDomain,
+              accessToken,
+              productId,
+              metafields,
+              apiVersion
+            );
+          } catch (metafieldsError) {
+            console.error("Error adding metafields:", metafieldsError);
+            // Continue with the process even if metafields fail
+          }
+        }
+        
+        // Return success with product and image data
+        return {
+          statusCode: 200,
+          headers,
+          body: JSON.stringify({
+            product: productResponse.product,
+            image: imageResponse.image,
+            metafields: metafieldsResult,
+            success: true
+          })
+        };
       } catch (imageError) {
         console.error("Error attaching image:", imageError);
         
@@ -201,12 +241,13 @@ export async function handler(event, context) {
           headers,
           body: JSON.stringify({
             product: productResponse.product,
-            warning: "Product created but image could not be attached: " + imageError.message
+            warning: "Product created but image could not be attached: " + imageError.message,
+            success: true
           })
         };
       }
     } else {
-      throw new Error('Failed to create product');
+      throw new Error('Failed to create product - incomplete response from Shopify API');
     }
   } catch (error) {
     console.error('Error creating Shopify product:', error);
@@ -214,7 +255,11 @@ export async function handler(event, context) {
     return {
       statusCode: 500,
       headers,
-      body: JSON.stringify({ error: error.message || 'Internal server error' })
+      body: JSON.stringify({ 
+        error: error.message || 'Internal server error',
+        stack: process.env.NODE_ENV === 'development' ? error.stack : undefined,
+        success: false
+      })
     };
   }
 }
@@ -505,6 +550,117 @@ async function attachBase64ImageToProduct(shopDomain, accessToken, productId, ba
     return result;
   } catch (error) {
     console.error('Error attaching base64 image to product:', error.message);
+    throw error;
+  }
+}
+
+/**
+ * Add metafields to a Shopify product
+ * Metafields are used to store additional data about a product
+ */
+async function addMetafieldsToProduct(shopDomain, accessToken, productId, metafields, apiVersion) {
+  try {
+    console.log(`Adding metafields to product ${productId}`);
+    
+    // Ensure valid API version
+    apiVersion = apiVersion || '2023-07';
+    
+    // Metafields can be added individually or in bulk depending on Shopify API version
+    // For newer API versions, we can use the bulk endpoint
+    const url = `https://${shopDomain}/admin/api/${apiVersion}/products/${productId}/metafields.json`;
+    console.log(`Making metafields request to: ${url}`);
+    
+    // Generate authentication headers
+    let authHeaders = {};
+    
+    // First try the passed accessToken (for backward compatibility)
+    if (accessToken) {
+      console.log('Using provided access token authentication for metafields');
+      authHeaders = {
+        'X-Shopify-Access-Token': accessToken
+      };
+    } else if (global.shopifyAuth) {
+      if (global.shopifyAuth.accessToken) {
+        // Method 1: Access Token Authentication
+        console.log('Using global access token authentication for metafields');
+        authHeaders = {
+          'X-Shopify-Access-Token': global.shopifyAuth.accessToken
+        };
+      } else if (global.shopifyAuth.apiKey && global.shopifyAuth.apiSecret) {
+        // Method 2: API Key + Secret Authentication
+        console.log('Using global API key and secret authentication for metafields');
+        const authString = Buffer.from(`${global.shopifyAuth.apiKey}:${global.shopifyAuth.apiSecret}`).toString('base64');
+        authHeaders = {
+          'Authorization': `Basic ${authString}`
+        };
+      }
+    }
+    
+    if (Object.keys(authHeaders).length === 0) {
+      throw new Error('No valid authentication method available for metafields');
+    }
+    
+    // Process metafields in batches to avoid API limits
+    const results = [];
+    const MAX_BATCH_SIZE = 10; // Shopify may have limits on bulk operations
+    
+    // Process metafields in smaller batches
+    for (let i = 0; i < metafields.length; i += MAX_BATCH_SIZE) {
+      const batch = metafields.slice(i, i + MAX_BATCH_SIZE);
+      console.log(`Processing metafield batch ${Math.floor(i/MAX_BATCH_SIZE) + 1}, size: ${batch.length}`);
+      
+      // For each metafield in the batch, send an individual request
+      // This is more reliable than trying to use bulk endpoints which may not be available
+      const batchPromises = batch.map(async (metafield) => {
+        const metafieldData = {
+          metafield: {
+            namespace: metafield.namespace || 'custom',
+            key: metafield.key,
+            value: metafield.value,
+            type: metafield.type || 'single_line_text_field'
+          }
+        };
+        
+        const response = await fetch(url, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            ...authHeaders
+          },
+          body: JSON.stringify(metafieldData)
+        });
+        
+        if (!response.ok) {
+          let errorText = await response.text();
+          console.error(`Error adding metafield ${metafield.key}:`, errorText);
+          return { 
+            success: false, 
+            key: metafield.key,
+            error: `API error: ${response.status} - ${errorText.substring(0, 100)}`
+          };
+        }
+        
+        const result = await response.json();
+        return { success: true, data: result.metafield, key: metafield.key };
+      });
+      
+      const batchResults = await Promise.all(batchPromises);
+      results.push(...batchResults);
+    }
+    
+    // Summarize results
+    const successful = results.filter(r => r.success).length;
+    console.log(`Added ${successful}/${metafields.length} metafields successfully`);
+    
+    return {
+      success: successful > 0,
+      total: metafields.length,
+      added: successful,
+      failed: metafields.length - successful,
+      results: results
+    };
+  } catch (error) {
+    console.error('Error adding metafields to product:', error.message);
     throw error;
   }
 }
