@@ -147,7 +147,13 @@ export const handler = async (event, context) => {
       };
     }
     
-    console.log('Found Prodigi API key, proceeding with request');
+    // Log a sanitized version of the key for debugging (first 4 chars + length)
+    console.log(`Found Prodigi API key (${apiKey.substr(0, 4)}... length: ${apiKey.length})`);
+    
+    // Check for common formatting issues
+    if (apiKey.includes(' ') || apiKey.includes('\n') || apiKey.includes('\r')) {
+      console.warn('Warning: API key contains whitespace - this may cause authentication issues');
+    }
 
     // Prepare the request to Prodigi API
     const requestBody = {
@@ -155,7 +161,9 @@ export const handler = async (event, context) => {
       destinationCountryCode: countryCode,
       currencyCode: currencyCode,
       items: [product || {
-        sku: "GLOBAL-CAN-16X20",
+        // Try a different SKU format - some examples from Prodigi docs
+        // Using their example SKU from documentation: GLOBAL-CAN-10X10
+        sku: "GLOBAL-CAN-10X10",
         copies: 1,
         attributes: { wrap: "ImageWrap" },
         assets: [{ printArea: "default" }]
@@ -163,15 +171,21 @@ export const handler = async (event, context) => {
     };
 
     // Call the Prodigi API to get quote
+    // Always use the sandbox URL for testing - production would be 'https://api.prodigi.com/v4.0/quotes'
     const apiUrl = 'https://api.sandbox.prodigi.com/v4.0/quotes';
     
-    console.log('Prodigi API request:', JSON.stringify(requestBody, null, 2));
+    console.log('Prodigi API request to URL:', apiUrl);
+    console.log('Request body:', JSON.stringify(requestBody, null, 2));
+    
+    // Clean the API key of any whitespace to prevent auth issues
+    const cleanedApiKey = apiKey.trim();
     
     const response = await fetch(apiUrl, {
       method: 'POST',
       headers: {
-        'X-API-Key': apiKey,
-        'Content-Type': 'application/json'
+        'X-API-Key': cleanedApiKey,
+        'Content-Type': 'application/json',
+        'Accept': 'application/json'
       },
       body: JSON.stringify(requestBody)
     });

@@ -2,9 +2,9 @@
 // Functions for fetching pricing and other info from Prodigi API
 
 // Default product information - using a canvas product
-// Using GLOBAL-CAN-16X20 SKU, which is a verified SKU according to Prodigi documentation
+// Using GLOBAL-CAN-10X10 SKU from Prodigi docs example
 const DEFAULT_PRODUCT = {
-  sku: "GLOBAL-CAN-16X20",  // Prodigi SKU for a 16x20 inch canvas
+  sku: "GLOBAL-CAN-10X10",  // Prodigi SKU for a 10x10 inch canvas
   copies: 1,
   attributes: { wrap: "ImageWrap" },
   assets: [{ printArea: "default" }]
