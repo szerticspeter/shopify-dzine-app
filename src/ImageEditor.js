@@ -8,13 +8,11 @@ preloadedCanvasImage.src = '/images/products/canvas16x20.png';
 
 // Country selector component
 const CountrySelector = ({ selectedCountry, onCountryChange }) => {
-  // List of common countries to show at the top
-  const popularCountries = ['US', 'UK', 'CA', 'AU', 'DE', 'FR'];
-  
-  // All countries
+  // All countries supported by Prodigi (using ISO 3166-1 alpha-2 country codes)
+  // Note: UK should be GB for ISO standards
   const countries = [
     {code: 'US', name: 'United States'},
-    {code: 'UK', name: 'United Kingdom'},
+    {code: 'GB', name: 'United Kingdom'}, // ISO code is GB, not UK
     {code: 'CA', name: 'Canada'},
     {code: 'AU', name: 'Australia'},
     {code: 'DE', name: 'Germany'},
@@ -90,10 +88,11 @@ const ImageEditor = () => {
   const [activeCorner, setActiveCorner] = useState(null);
   const [showRecovery, setShowRecovery] = useState(false);
   const [recoveryInfo, setRecoveryInfo] = useState(null);
-  const [selectedCountry, setSelectedCountry] = useState('US');
+  const [selectedCountry, setSelectedCountry] = useState('GB'); // Changed default from US to GB (UK)
   const [priceQuote, setPriceQuote] = useState(null);
   const [pricingInfo, setPricingInfo] = useState(null);
   const [isLoadingPrice, setIsLoadingPrice] = useState(false);
+  const [priceError, setPriceError] = useState(null);
   const canvasRef = useRef(null);
   const imageRef = useRef(null);
   const productImageRef = useRef(null);
@@ -123,8 +122,8 @@ const ImageEditor = () => {
       console.error('Error checking for recovery data:', error);
     }
     
-    // Fetch initial price quote for default country (US)
-    fetchPriceQuote('US');
+    // Fetch initial price quote for default country (GB/UK)
+    fetchPriceQuote('GB');
   }, []);
   
   // Fetch price quote when country changes
@@ -138,6 +137,9 @@ const ImageEditor = () => {
       setIsLoadingPrice(true);
       setPriceQuote(null);
       setPricingInfo(null);
+      setPriceError(null);
+      
+      console.log(`Fetching price quote for country code: ${countryCode}`);
       
       // Get pricing quote for the selected country directly from Prodigi API
       const quote = await getProdigiPriceQuote(countryCode);
@@ -155,6 +157,7 @@ const ImageEditor = () => {
       console.log(`Price quote for ${countryCode}:`, pricingWithMarkup);
     } catch (error) {
       console.error('Error fetching price quote:', error);
+      setPriceError(`Unable to get pricing: ${error.message}`);
       // Don't set any fallback pricing, just show the error state
     } finally {
       setIsLoadingPrice(false);
@@ -1113,7 +1116,11 @@ const ImageEditor = () => {
                   {pricingInfo.finalPrice.total} {pricingInfo.currency}
                 </span>
               ) : (
-                <span className="error-price">Price unavailable</span>
+                <span className="error-price">
+                  {priceError ? 
+                    `API error - ${priceError}` : 
+                    'Price unavailable'}
+                </span>
               )}
             </span>
           </div>

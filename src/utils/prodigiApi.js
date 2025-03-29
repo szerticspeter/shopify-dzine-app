@@ -3,11 +3,14 @@
 
 // Default product information - using a canvas product
 const DEFAULT_PRODUCT = {
-  sku: "GLOBAL-CAN-16X20",
+  sku: "GLOBAL-CAN-16X20",  // Prodigi SKU for a 16x20 inch canvas
   copies: 1,
   attributes: { wrap: "ImageWrap" },
   assets: [{ printArea: "default" }]
 };
+
+// Make sure we properly log what's happening for debugging
+console.log('Prodigi API utils initialized with default product:', DEFAULT_PRODUCT);
 
 /**
  * Fetch price quote from Prodigi for a specific country

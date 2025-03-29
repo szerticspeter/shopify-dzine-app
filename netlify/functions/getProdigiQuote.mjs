@@ -115,7 +115,21 @@ export const handler = async (event, context) => {
   try {
     // Parse the request body
     const body = JSON.parse(event.body || '{}');
-    const { countryCode = 'US', currencyCode = 'USD', product } = body;
+    const { countryCode = 'GB', currencyCode = 'USD', product } = body;
+    
+    console.log(`Prodigi Quote Request - Country: ${countryCode}, Currency: ${currencyCode}`);
+    
+    // Validate country code (we need proper ISO 3166-1 alpha-2 codes)
+    if (!countryCode || countryCode.length !== 2) {
+      return {
+        statusCode: 400, 
+        headers,
+        body: JSON.stringify({
+          error: true,
+          message: `Invalid country code: ${countryCode}. Must be a 2-letter ISO 3166-1 alpha-2 code.`
+        })
+      };
+    }
 
     // Get API key from environment variables
     const apiKey = process.env.PRODIGI_API_KEY;
@@ -148,6 +162,9 @@ export const handler = async (event, context) => {
 
     // Call the Prodigi API to get quote
     const apiUrl = 'https://api.sandbox.prodigi.com/v4.0/quotes';
+    
+    console.log('Prodigi API request:', JSON.stringify(requestBody, null, 2));
+    
     const response = await fetch(apiUrl, {
       method: 'POST',
       headers: {
