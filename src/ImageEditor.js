@@ -139,6 +139,11 @@ const ImageEditor = () => {
       setPricingInfo(null);
       setPriceError(null);
       
+      // Check if the API key is set in environment
+      if (!process.env.REACT_APP_PRODIGI_API_KEY) {
+        console.warn('REACT_APP_PRODIGI_API_KEY not found in environment variables');
+      }
+      
       console.log(`Fetching price quote for country code: ${countryCode}`);
       
       // Get pricing quote for the selected country directly from Prodigi API

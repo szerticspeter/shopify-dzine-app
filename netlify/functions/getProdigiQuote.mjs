@@ -131,8 +131,8 @@ export const handler = async (event, context) => {
       };
     }
 
-    // Get API key from environment variables
-    const apiKey = process.env.PRODIGI_API_KEY;
+    // Get API key from environment variables - check both possible names
+    const apiKey = process.env.REACT_APP_PRODIGI_API_KEY || process.env.PRODIGI_API_KEY;
 
     // If no API key, return an error
     if (!apiKey) {
@@ -142,10 +142,12 @@ export const handler = async (event, context) => {
         headers,
         body: JSON.stringify({ 
           error: true, 
-          message: 'Prodigi API key not configured. Please set the PRODIGI_API_KEY environment variable.' 
+          message: 'Prodigi API key not configured. Please set the REACT_APP_PRODIGI_API_KEY environment variable.' 
         })
       };
     }
+    
+    console.log('Found Prodigi API key, proceeding with request');
 
     // Prepare the request to Prodigi API
     const requestBody = {
@@ -178,10 +180,13 @@ export const handler = async (event, context) => {
     if (!response.ok) {
       const errorText = await response.text();
       console.error('Prodigi API error:', errorText);
+      console.error('Response status:', response.status);
+      console.error('Response headers:', JSON.stringify(Object.fromEntries([...response.headers.entries()])));
       throw new Error(`API responded with status ${response.status}: ${errorText}`);
     }
 
     const data = await response.json();
+    console.log('Prodigi API response:', JSON.stringify(data, null, 2));
     
     return {
       statusCode: 200,
