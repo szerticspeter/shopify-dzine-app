@@ -1,0 +1,305 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Shopify Checkout Test</title>
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+      max-width: 800px;
+      margin: 0 auto;
+      padding: 20px;
+      line-height: 1.6;
+      color: #333;
+      background: linear-gradient(135deg, #e0c3fc 0%, #8ec5fc 100%);
+      background-attachment: fixed;
+      min-height: 100vh;
+    }
+    
+    .container {
+      background-color: rgba(255, 255, 255, 0.95);
+      border-radius: 20px;
+      box-shadow: 0 15px 35px rgba(0, 0, 0, 0.15);
+      padding: 40px;
+      margin-top: 40px;
+      margin-bottom: 40px;
+    }
+    h1 {
+      color: #008060;
+      margin-bottom: 30px;
+    }
+    .input-group {
+      margin-bottom: 20px;
+    }
+    label {
+      display: block;
+      margin-bottom: 5px;
+      font-weight: 500;
+    }
+    input[type="text"] {
+      width: 100%;
+      padding: 10px;
+      border: 1px solid #ddd;
+      border-radius: 4px;
+      font-size: 16px;
+    }
+    .button-container {
+      margin: 30px 0;
+    }
+    button {
+      padding: 12px 24px;
+      background-color: #008060;
+      color: white;
+      border: none;
+      border-radius: 4px;
+      font-size: 16px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: background-color 0.3s;
+    }
+    button:hover {
+      background-color: #006e52;
+    }
+    #result-container {
+      margin-top: 30px;
+      padding: 20px;
+      background-color: #f5f5f5;
+      border-radius: 8px;
+    }
+    a {
+      color: #008060;
+      text-decoration: none;
+      font-weight: 500;
+      display: inline-block;
+      margin-bottom: 8px;
+    }
+    a:hover {
+      text-decoration: underline;
+    }
+    .primary-link {
+      background-color: #008060;
+      color: white;
+      padding: 8px 16px;
+      border-radius: 4px;
+      text-decoration: none;
+      margin-right: 10px;
+    }
+    .primary-link:hover {
+      background-color: #006e52;
+      text-decoration: none;
+    }
+    .section {
+      margin-bottom: 40px;
+      padding-bottom: 20px;
+      border-bottom: 1px solid #eee;
+    }
+    h2 {
+      color: #333;
+      margin-bottom: 15px;
+    }
+    .output {
+      background-color: #f5f5f5;
+      padding: 10px;
+      border-radius: 4px;
+      font-family: monospace;
+      margin-top: 10px;
+      white-space: pre-wrap;
+      word-break: break-all;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>Shopify Checkout Test</h1>
+    <p>This page tests various ways to redirect to a Shopify checkout page.</p>
+    
+    <div class="section">
+      <h2>Method 1: Direct Checkout with Variant ID</h2>
+      <p>Use this method to go directly to checkout with a specific variant ID.</p>
+      
+      <div class="input-group">
+        <label for="shopDomain">Shop Domain (e.g., yourstore.myshopify.com)</label>
+        <input type="text" id="shopDomain" placeholder="yourstore.myshopify.com">
+      </div>
+      
+      <div class="input-group">
+        <label for="variantId">Variant ID</label>
+        <input type="text" id="variantId" placeholder="12345678901234">
+      </div>
+      
+      <div class="button-container">
+        <button id="directCheckoutButton">Go to Direct Checkout</button>
+      </div>
+      
+      <div id="directCheckoutOutput" class="output"></div>
+    </div>
+    
+    <div class="section">
+      <h2>Method 2: Cart Page with Variant ID</h2>
+      <p>Use this method to add a product to cart and view the cart.</p>
+      
+      <div class="button-container">
+        <button id="cartButton">Go to Cart Page</button>
+      </div>
+      
+      <div id="cartOutput" class="output"></div>
+    </div>
+    
+    <div class="section">
+      <h2>Method 3: Product Page with Handle</h2>
+      <p>Use this method to view a product page by its handle.</p>
+      
+      <div class="input-group">
+        <label for="productHandle">Product Handle</label>
+        <input type="text" id="productHandle" placeholder="custom-design-test">
+      </div>
+      
+      <div class="button-container">
+        <button id="productButton">View Product Page</button>
+      </div>
+      
+      <div id="productOutput" class="output"></div>
+    </div>
+    
+    <div id="result-container">
+      <h3>Test Results:</h3>
+      <div id="testResults"></div>
+    </div>
+  </div>
+
+  <script>
+    document.addEventListener('DOMContentLoaded', function() {
+      // Get elements
+      const shopDomainInput = document.getElementById('shopDomain');
+      const variantIdInput = document.getElementById('variantId');
+      const productHandleInput = document.getElementById('productHandle');
+      const directCheckoutButton = document.getElementById('directCheckoutButton');
+      const cartButton = document.getElementById('cartButton');
+      const productButton = document.getElementById('productButton');
+      const testResults = document.getElementById('testResults');
+      
+      // Set default values if stored in localStorage
+      shopDomainInput.value = localStorage.getItem('shopDomain') || '';
+      variantIdInput.value = localStorage.getItem('variantId') || '';
+      productHandleInput.value = localStorage.getItem('productHandle') || '';
+      
+      // Direct checkout method
+      directCheckoutButton.addEventListener('click', function() {
+        const shopDomain = shopDomainInput.value.trim();
+        const variantId = variantIdInput.value.trim();
+        
+        // Save values to localStorage
+        localStorage.setItem('shopDomain', shopDomain);
+        localStorage.setItem('variantId', variantId);
+        
+        if (!shopDomain || !variantId) {
+          alert('Please enter both Shop Domain and Variant ID');
+          return;
+        }
+        
+        // Build checkout URL
+        const cleanDomain = shopDomain.replace(/https?:\/\//i, '').replace(/\/.*$/i, '');
+        const checkoutUrl = `https://${cleanDomain}/cart/${variantId}:1?checkout=direct`;
+        
+        // Show the URL before redirecting
+        document.getElementById('directCheckoutOutput').textContent = `Generated URL: ${checkoutUrl}`;
+        
+        // Create a link for testing
+        testResults.innerHTML = `
+          <p>Direct Checkout URL generated:</p>
+          <a href="${checkoutUrl}" target="_blank" class="primary-link">Open Checkout in New Tab</a>
+          <button id="redirectButton" class="primary-link">Redirect to Checkout</button>
+        `;
+        
+        // Add redirect handler
+        document.getElementById('redirectButton').addEventListener('click', function() {
+          window.location.href = checkoutUrl;
+        });
+      });
+      
+      // Cart page method
+      cartButton.addEventListener('click', function() {
+        const shopDomain = shopDomainInput.value.trim();
+        const variantId = variantIdInput.value.trim();
+        
+        if (!shopDomain || !variantId) {
+          alert('Please enter both Shop Domain and Variant ID');
+          return;
+        }
+        
+        // Build cart URL
+        const cleanDomain = shopDomain.replace(/https?:\/\//i, '').replace(/\/.*$/i, '');
+        const cartUrl = `https://${cleanDomain}/cart/${variantId}:1`;
+        
+        // Show the URL before redirecting
+        document.getElementById('cartOutput').textContent = `Generated URL: ${cartUrl}`;
+        
+        // Create a link for testing
+        testResults.innerHTML = `
+          <p>Cart URL generated:</p>
+          <a href="${cartUrl}" target="_blank" class="primary-link">Open Cart in New Tab</a>
+          <button id="redirectCartButton" class="primary-link">Redirect to Cart</button>
+        `;
+        
+        // Add redirect handler
+        document.getElementById('redirectCartButton').addEventListener('click', function() {
+          window.location.href = cartUrl;
+        });
+      });
+      
+      // Product page method
+      productButton.addEventListener('click', function() {
+        const shopDomain = shopDomainInput.value.trim();
+        const productHandle = productHandleInput.value.trim();
+        
+        // Save value to localStorage
+        localStorage.setItem('productHandle', productHandle);
+        
+        if (!shopDomain || !productHandle) {
+          alert('Please enter both Shop Domain and Product Handle');
+          return;
+        }
+        
+        // Build product URL
+        const cleanDomain = shopDomain.replace(/https?:\/\//i, '').replace(/\/.*$/i, '');
+        const productUrl = `https://${cleanDomain}/products/${productHandle}`;
+        
+        // Show the URL before redirecting
+        document.getElementById('productOutput').textContent = `Generated URL: ${productUrl}`;
+        
+        // Create a link for testing
+        testResults.innerHTML = `
+          <p>Product URL generated:</p>
+          <a href="${productUrl}" target="_blank" class="primary-link">Open Product in New Tab</a>
+          <button id="redirectProductButton" class="primary-link">Redirect to Product</button>
+        `;
+        
+        // Add redirect handler
+        document.getElementById('redirectProductButton').addEventListener('click', function() {
+          window.location.href = productUrl;
+        });
+      });
+      
+      // Add explanations
+      document.getElementById('directCheckoutOutput').innerHTML = `
+        <strong>How this works:</strong> 
+        This uses the format <code>https://store.myshopify.com/cart/VARIANT_ID:1?checkout=direct</code> 
+        which directly sends the customer to the checkout page with the product already in cart.
+      `;
+      
+      document.getElementById('cartOutput').innerHTML = `
+        <strong>How this works:</strong>
+        This uses the format <code>https://store.myshopify.com/cart/VARIANT_ID:1</code>
+        which adds the product to cart and shows the cart page.
+      `;
+      
+      document.getElementById('productOutput').innerHTML = `
+        <strong>How this works:</strong>
+        This uses the format <code>https://store.myshopify.com/products/PRODUCT_HANDLE</code>
+        which shows the product page where customers can select variants and add to cart.
+      `;
+    });
+  </script>
+</body>
+</html>

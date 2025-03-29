@@ -1,0 +1,417 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Shopify Product Creation Test</title>
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+      max-width: 800px;
+      margin: 0 auto;
+      padding: 20px;
+      line-height: 1.6;
+      color: #333;
+      background: linear-gradient(135deg, #e0c3fc 0%, #8ec5fc 100%);
+      background-attachment: fixed;
+      min-height: 100vh;
+    }
+    
+    .container {
+      background-color: rgba(255, 255, 255, 0.95);
+      border-radius: 20px;
+      box-shadow: 0 15px 35px rgba(0, 0, 0, 0.15);
+      padding: 40px;
+      margin-top: 40px;
+      margin-bottom: 40px;
+    }
+    h1 {
+      color: #008060;
+      margin-bottom: 30px;
+    }
+    .input-group {
+      margin-bottom: 20px;
+    }
+    label {
+      display: block;
+      margin-bottom: 5px;
+      font-weight: 500;
+    }
+    input[type="text"], textarea {
+      width: 100%;
+      padding: 10px;
+      border: 1px solid #ddd;
+      border-radius: 4px;
+      font-size: 16px;
+    }
+    textarea {
+      height: 100px;
+      resize: vertical;
+    }
+    .button-container {
+      margin: 30px 0;
+    }
+    button {
+      padding: 12px 24px;
+      background-color: #008060;
+      color: white;
+      border: none;
+      border-radius: 4px;
+      font-size: 16px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: background-color 0.3s;
+    }
+    button:hover {
+      background-color: #006e52;
+    }
+    button:disabled {
+      background-color: #95c9b4;
+      cursor: not-allowed;
+    }
+    #result-container {
+      margin-top: 30px;
+      padding: 20px;
+      background-color: #f5f5f5;
+      border-radius: 8px;
+      display: none;
+    }
+    #error-container {
+      margin-top: 20px;
+      padding: 15px;
+      background-color: #fdf2f2;
+      border-left: 4px solid #ef4444;
+      color: #b91c1c;
+      border-radius: 4px;
+      display: none;
+    }
+    .loading {
+      display: inline-block;
+      width: 20px;
+      height: 20px;
+      border: 3px solid rgba(255,255,255,.3);
+      border-radius: 50%;
+      border-top-color: white;
+      animation: spin 1s ease-in-out infinite;
+      margin-right: 10px;
+    }
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+    .response-data {
+      background-color: #f0f0f0;
+      padding: 15px;
+      border-radius: 4px;
+      font-family: monospace;
+      white-space: pre-wrap;
+      word-break: break-all;
+      margin-top: 20px;
+      max-height: 300px;
+      overflow: auto;
+    }
+    a.link-button {
+      display: inline-block;
+      padding: 8px 16px;
+      background-color: #008060;
+      color: white;
+      text-decoration: none;
+      border-radius: 4px;
+      margin-right: 10px;
+      margin-top: 10px;
+    }
+    a.link-button:hover {
+      background-color: #006e52;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>Shopify Product Creation Test</h1>
+    <p>This page tests creating a Shopify product using the Netlify function.</p>
+    
+    <div class="input-group">
+      <label for="productTitle">Product Title</label>
+      <input type="text" id="productTitle" value="Test Product - Simple Test">
+    </div>
+    
+    <div class="input-group">
+      <label for="productDescription">Product Description</label>
+      <textarea id="productDescription">This is a test product created using the Shopify API.</textarea>
+    </div>
+    
+    <div class="input-group">
+      <label for="productPrice">Product Price</label>
+      <input type="text" id="productPrice" value="9.99">
+    </div>
+    
+    <div class="input-group">
+      <label for="imageUrl">Image URL (optional)</label>
+      <input type="text" id="imageUrl" value="https://static.dzine.ai/open_product/20250322/54/img2img/1_output_1742650385000203_jrmL0.webp">
+      <p><small>Leave empty to create product without an image</small></p>
+    </div>
+    
+    <div class="button-container">
+      <button id="createButton">Create Product</button>
+      <button id="createSimpleButton">Create Simple Product</button>
+    </div>
+    
+    <div id="result-container">
+      <h3>Product Created Successfully!</h3>
+      <div id="productInfo"></div>
+      <div id="responseData" class="response-data"></div>
+    </div>
+    
+    <div id="error-container">
+      <h3>Error</h3>
+      <p id="error-message"></p>
+      <div id="errorDetails" class="response-data"></div>
+    </div>
+  </div>
+
+  <script>
+    document.addEventListener('DOMContentLoaded', function() {
+      const createButton = document.getElementById('createButton');
+      const createSimpleButton = document.getElementById('createSimpleButton');
+      const resultContainer = document.getElementById('result-container');
+      const errorContainer = document.getElementById('error-container');
+      const errorMessage = document.getElementById('error-message');
+      const errorDetails = document.getElementById('errorDetails');
+      const productInfo = document.getElementById('productInfo');
+      const responseData = document.getElementById('responseData');
+      
+      // Full product creation
+      createButton.addEventListener('click', async function() {
+        // Reset UI
+        resultContainer.style.display = 'none';
+        errorContainer.style.display = 'none';
+        
+        // Show loading state
+        createButton.disabled = true;
+        createButton.innerHTML = '<span class="loading"></span> Creating product...';
+        
+        try {
+          // Get input values
+          const title = document.getElementById('productTitle').value;
+          const description = document.getElementById('productDescription').value;
+          const price = document.getElementById('productPrice').value;
+          const imageUrl = document.getElementById('imageUrl').value;
+          
+          // Basic validation
+          if (!title || !price) {
+            throw new Error('Product title and price are required');
+          }
+          
+          // Prepare product data
+          const productData = {
+            title: title,
+            description: description || '',
+            price: price
+          };
+          
+          // Add image URL if provided
+          if (imageUrl) {
+            productData.imageUrl = imageUrl;
+          }
+          
+          console.log('Creating product with data:', productData);
+          
+          // Call Netlify function
+          const response = await fetch('/.netlify/functions/createShopifyProduct', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(productData)
+          });
+          
+          const responseText = await response.text();
+          console.log('Raw response:', responseText);
+          
+          let data;
+          try {
+            data = JSON.parse(responseText);
+          } catch (e) {
+            throw new Error(`Invalid JSON response: ${responseText}`);
+          }
+          
+          if (!response.ok) {
+            throw new Error(data.error || `API error: ${response.status} ${response.statusText}`);
+          }
+          
+          console.log('Product created:', data);
+          
+          // Display success
+          resultContainer.style.display = 'block';
+          responseData.textContent = JSON.stringify(data, null, 2);
+          
+          // Display product info and links
+          if (data.product) {
+            const product = data.product;
+            const productId = product.id;
+            const variantId = product.variants && product.variants.length > 0 ? product.variants[0].id : null;
+            
+            let linksHtml = '';
+            
+            if (product.admin_url) {
+              linksHtml += `<a href="${product.admin_url}" target="_blank" class="link-button">View in Shopify Admin</a>`;
+            }
+            
+            if (variantId) {
+              // Extract domain from admin URL if available
+              let shopDomain = '';
+              if (product.admin_url) {
+                try {
+                  shopDomain = new URL(product.admin_url).hostname.replace('admin.', '');
+                } catch (e) {
+                  console.error('Error extracting domain:', e);
+                }
+              }
+              
+              if (shopDomain) {
+                // Format variant ID if needed
+                let formattedVariantId = variantId;
+                if (typeof variantId === 'string' && variantId.includes('/')) {
+                  formattedVariantId = variantId.split('/').pop();
+                }
+                
+                const cartUrl = `https://${shopDomain}/cart/${formattedVariantId}:1`;
+                const checkoutUrl = `${cartUrl}?checkout=direct`;
+                
+                linksHtml += `
+                  <a href="${cartUrl}" target="_blank" class="link-button">View Cart</a>
+                  <a href="${checkoutUrl}" target="_blank" class="link-button">Go to Checkout</a>
+                `;
+              }
+            }
+            
+            productInfo.innerHTML = `
+              <p><strong>Product ID:</strong> ${productId}</p>
+              <p><strong>Variant ID:</strong> ${variantId || 'N/A'}</p>
+              <div>${linksHtml}</div>
+            `;
+          }
+        } catch (error) {
+          console.error('Error creating product:', error);
+          
+          // Show error message
+          errorMessage.textContent = error.message || 'An unknown error occurred';
+          errorDetails.textContent = error.stack || '';
+          errorContainer.style.display = 'block';
+        } finally {
+          // Reset button
+          createButton.disabled = false;
+          createButton.textContent = 'Create Product';
+        }
+      });
+      
+      // Simple product creation (minimal data)
+      createSimpleButton.addEventListener('click', async function() {
+        // Reset UI
+        resultContainer.style.display = 'none';
+        errorContainer.style.display = 'none';
+        
+        // Show loading state
+        createSimpleButton.disabled = true;
+        createSimpleButton.innerHTML = '<span class="loading"></span> Creating simple product...';
+        
+        try {
+          // Prepare minimal product data
+          const productData = {
+            title: 'Minimal Test Product',
+            price: '1.00'
+          };
+          
+          console.log('Creating simple product with data:', productData);
+          
+          // Call Netlify function
+          const response = await fetch('/.netlify/functions/createShopifyProduct', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(productData)
+          });
+          
+          const responseText = await response.text();
+          console.log('Raw response:', responseText);
+          
+          let data;
+          try {
+            data = JSON.parse(responseText);
+          } catch (e) {
+            throw new Error(`Invalid JSON response: ${responseText}`);
+          }
+          
+          if (!response.ok) {
+            throw new Error(data.error || `API error: ${response.status} ${response.statusText}`);
+          }
+          
+          console.log('Simple product created:', data);
+          
+          // Display success
+          resultContainer.style.display = 'block';
+          responseData.textContent = JSON.stringify(data, null, 2);
+          
+          // Display product info
+          if (data.product) {
+            const product = data.product;
+            const productId = product.id;
+            const variantId = product.variants && product.variants.length > 0 ? product.variants[0].id : null;
+            
+            let linksHtml = '';
+            
+            if (product.admin_url) {
+              linksHtml += `<a href="${product.admin_url}" target="_blank" class="link-button">View in Shopify Admin</a>`;
+            }
+            
+            if (variantId) {
+              // Extract domain from admin URL if available
+              let shopDomain = '';
+              if (product.admin_url) {
+                try {
+                  shopDomain = new URL(product.admin_url).hostname.replace('admin.', '');
+                } catch (e) {
+                  console.error('Error extracting domain:', e);
+                }
+              }
+              
+              if (shopDomain) {
+                // Format variant ID if needed
+                let formattedVariantId = variantId;
+                if (typeof variantId === 'string' && variantId.includes('/')) {
+                  formattedVariantId = variantId.split('/').pop();
+                }
+                
+                const cartUrl = `https://${shopDomain}/cart/${formattedVariantId}:1`;
+                const checkoutUrl = `${cartUrl}?checkout=direct`;
+                
+                linksHtml += `
+                  <a href="${cartUrl}" target="_blank" class="link-button">View Cart</a>
+                  <a href="${checkoutUrl}" target="_blank" class="link-button">Go to Checkout</a>
+                `;
+              }
+            }
+            
+            productInfo.innerHTML = `
+              <p><strong>Product ID:</strong> ${productId}</p>
+              <p><strong>Variant ID:</strong> ${variantId || 'N/A'}</p>
+              <div>${linksHtml}</div>
+            `;
+          }
+        } catch (error) {
+          console.error('Error creating simple product:', error);
+          
+          // Show error message
+          errorMessage.textContent = error.message || 'An unknown error occurred';
+          errorDetails.textContent = error.stack || '';
+          errorContainer.style.display = 'block';
+        } finally {
+          // Reset button
+          createSimpleButton.disabled = false;
+          createSimpleButton.textContent = 'Create Simple Product';
+        }
+      });
+    });
+  </script>
+</body>
+</html>
