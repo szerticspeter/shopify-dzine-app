@@ -136,9 +136,16 @@ const ImageEditor = () => {
   const fetchPriceQuote = async (countryCode) => {
     try {
       setIsLoadingPrice(true);
+      setPriceQuote(null);
+      setPricingInfo(null);
       
-      // Get pricing quote for the selected country
+      // Get pricing quote for the selected country directly from Prodigi API
       const quote = await getProdigiPriceQuote(countryCode);
+      
+      if (quote.error) {
+        throw new Error(quote.message || 'Failed to get price from Prodigi');
+      }
+      
       setPriceQuote(quote);
       
       // Calculate the price with markup
@@ -148,6 +155,7 @@ const ImageEditor = () => {
       console.log(`Price quote for ${countryCode}:`, pricingWithMarkup);
     } catch (error) {
       console.error('Error fetching price quote:', error);
+      // Don't set any fallback pricing, just show the error state
     } finally {
       setIsLoadingPrice(false);
     }
@@ -1095,22 +1103,28 @@ const ImageEditor = () => {
             selectedCountry={selectedCountry}
             onCountryChange={setSelectedCountry}
           />
-          {pricingInfo && (
-            <div className="price-display">
-              <span className="price-label">Price: </span>
-              <span className="price-value">
-                {isLoadingPrice ? (
-                  <span className="loading-price">Loading...</span>
-                ) : (
-                  <span>
-                    {pricingInfo.finalPrice.total} {pricingInfo.currency}
-                  </span>
-                )}
-              </span>
-            </div>
-          )}
+          <div className="price-display">
+            <span className="price-label">Price: </span>
+            <span className="price-value">
+              {isLoadingPrice ? (
+                <span className="loading-price">Loading...</span>
+              ) : pricingInfo ? (
+                <span>
+                  {pricingInfo.finalPrice.total} {pricingInfo.currency}
+                </span>
+              ) : (
+                <span className="error-price">Price unavailable</span>
+              )}
+            </span>
+          </div>
         </div>
-        <button className="crop-button" onClick={cropImage}>Crop & Continue</button>
+        <button 
+          className="crop-button" 
+          onClick={cropImage}
+          disabled={isLoadingPrice || !pricingInfo} // Disable button if price is unavailable
+        >
+          Crop & Continue
+        </button>
       </div>
     </div>
   );

@@ -1051,6 +1051,11 @@ body {
   color: #7f8c8d;
 }
 
+.error-price {
+  color: #e74c3c;
+  font-weight: 500;
+}
+
 .primary-button {
   padding: 12px 24px;
   background-color: #4a90e2;

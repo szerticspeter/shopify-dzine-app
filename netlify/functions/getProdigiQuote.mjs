@@ -120,13 +120,16 @@ export const handler = async (event, context) => {
     // Get API key from environment variables
     const apiKey = process.env.PRODIGI_API_KEY;
 
-    // If no API key, return mock data
+    // If no API key, return an error
     if (!apiKey) {
-      console.log('No Prodigi API key found. Returning mock data.');
+      console.log('No Prodigi API key found in environment variables');
       return {
-        statusCode: 200,
+        statusCode: 400,
         headers,
-        body: JSON.stringify(getMockPriceQuote(countryCode, currencyCode))
+        body: JSON.stringify({ 
+          error: true, 
+          message: 'Prodigi API key not configured. Please set the PRODIGI_API_KEY environment variable.' 
+        })
       };
     }
 
@@ -171,14 +174,15 @@ export const handler = async (event, context) => {
   } catch (error) {
     console.error('Error fetching Prodigi quote:', error);
     
-    // Return mock data as fallback
+    // Return error details for debugging
     return {
-      statusCode: 200,
+      statusCode: 500,
       headers,
-      body: JSON.stringify(getMockPriceQuote(
-        event.body ? JSON.parse(event.body).countryCode || 'US' : 'US',
-        event.body ? JSON.parse(event.body).currencyCode || 'USD' : 'USD'
-      ))
+      body: JSON.stringify({
+        error: true,
+        message: 'Failed to fetch price quote from Prodigi API',
+        details: error.message
+      })
     };
   }
 };

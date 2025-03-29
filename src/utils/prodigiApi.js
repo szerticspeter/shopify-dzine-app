@@ -18,8 +18,7 @@ const DEFAULT_PRODUCT = {
  */
 export const getProdigiPriceQuote = async (countryCode, currencyCode = 'USD', productInfo = DEFAULT_PRODUCT) => {
   try {
-    // In a real-world implementation, we would call the Prodigi API here
-    // For now, we'll use a serverless function to avoid exposing API keys in the client
+    // Call the serverless function to get pricing from Prodigi API
     const response = await fetch('/.netlify/functions/getProdigiQuote', {
       method: 'POST',
       headers: {
@@ -40,8 +39,7 @@ export const getProdigiPriceQuote = async (countryCode, currencyCode = 'USD', pr
     return await response.json();
   } catch (error) {
     console.error('Error fetching Prodigi price quote:', error);
-    // Return mock pricing data if API call fails
-    return getMockPriceQuote(countryCode, currencyCode);
+    throw error; // Propagate the error instead of using mock data
   }
 };
 
