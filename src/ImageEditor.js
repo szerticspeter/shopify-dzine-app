@@ -759,6 +759,7 @@ const ImageEditor = () => {
       console.log('Creating Shopify product...');
       
       // Get product details from URL parameters or use defaults
+      // Initialize URL params at the beginning to avoid undefined errors
       const urlParams = new URLSearchParams(window.location.search);
       const productTitle = urlParams.get('title') || 'Custom Canvas Design';
       const productDesc = urlParams.get('description') || 'Custom designed canvas created with Dzine.ai';
@@ -828,24 +829,33 @@ const ImageEditor = () => {
         
         // Extract store domain
         let shopDomain;
-        try {
-          shopDomain = new URL(createResult.product.admin_url).hostname.replace('admin.', '');
-        } catch (error) {
-          // Try to extract domain directly
-          const matches = createResult.product.admin_url.match(/https?:\/\/([^\/]+)/);
-          if (matches && matches[1]) {
-            shopDomain = matches[1].replace('admin.', '');
-          } else {
-            // Use environment variable as fallback
-            shopDomain = process.env.REACT_APP_SHOPIFY_STORE_DOMAIN || 'your-store.myshopify.com';
+        
+        // Check if admin_url exists in the response
+        if (createResult.product && createResult.product.admin_url) {
+          try {
+            shopDomain = new URL(createResult.product.admin_url).hostname.replace('admin.', '');
+          } catch (error) {
+            // Try to extract domain directly
+            const matches = createResult.product.admin_url.match(/https?:\/\/([^\/]+)/);
+            if (matches && matches[1]) {
+              shopDomain = matches[1].replace('admin.', '');
+            } else {
+              // Fallback to environment variable
+              shopDomain = process.env.REACT_APP_SHOPIFY_STORE_DOMAIN || 'your-store.myshopify.com';
+            }
           }
+        } else {
+          // No admin_url in response, use environment variable or default
+          console.log('No admin_url found in response, using environment variable or default');
+          shopDomain = process.env.REACT_APP_SHOPIFY_STORE_DOMAIN || 'your-store.myshopify.com';
         }
         
         // Create checkout URL - redirect directly to checkout
         const productHandle = createResult.product.handle || createResult.product.title.toLowerCase().replace(/[^a-z0-9]+/g, '-');
         
         // Check for custom redirect URL (for embedded apps or special scenarios)
-        const redirectUrl = urlParams.get('redirect');
+        // Make sure urlParams is defined
+        const redirectUrl = urlParams ? urlParams.get('redirect') : null;
         let checkoutUrl;
         
         if (redirectUrl) {
@@ -860,7 +870,7 @@ const ImageEditor = () => {
         }
         
         // Allow product preview option
-        const previewMode = urlParams.get('preview') === 'true';
+        const previewMode = urlParams && urlParams.get('preview') === 'true';
         if (previewMode) {
           const productUrl = `https://${shopDomain}/products/${productHandle}`;
           
