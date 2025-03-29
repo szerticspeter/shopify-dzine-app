@@ -45,9 +45,29 @@ export async function handler(event, context) {
       };
     }
 
-    // Get environment variables
-    const shopDomain = process.env.REACT_APP_SHOPIFY_STORE_DOMAIN;
-    const accessToken = process.env.SHOPIFY_ACCESS_TOKEN;
+    // Log all environment variables for debugging (excluding sensitive values)
+    console.log('Available environment variables:', 
+      Object.keys(process.env)
+        .filter(key => !key.toLowerCase().includes('token') && !key.toLowerCase().includes('secret'))
+        .join(', ')
+    );
+    
+    // Get environment variables - try multiple possible naming conventions
+    let shopDomain = process.env.REACT_APP_SHOPIFY_STORE_DOMAIN || 
+                     process.env.SHOPIFY_STORE_DOMAIN ||
+                     process.env.SHOPIFY_DOMAIN;
+                     
+    let accessToken = process.env.SHOPIFY_ACCESS_TOKEN || 
+                      process.env.SHOPIFY_API_TOKEN ||
+                      process.env.SHOPIFY_API_ACCESS_TOKEN;
+    
+    // Log the domain without exposing the token                  
+    console.log('Shopify domain variable check:', { 
+      'REACT_APP_SHOPIFY_STORE_DOMAIN': !!process.env.REACT_APP_SHOPIFY_STORE_DOMAIN,
+      'SHOPIFY_STORE_DOMAIN': !!process.env.SHOPIFY_STORE_DOMAIN,
+      'SHOPIFY_DOMAIN': !!process.env.SHOPIFY_DOMAIN,
+      'Using value': shopDomain
+    });
     
     if (!shopDomain || !accessToken) {
       console.error('Missing environment variables:', { 
@@ -58,8 +78,24 @@ export async function handler(event, context) {
       return {
         statusCode: 500,
         headers,
-        body: JSON.stringify({ error: 'Missing Shopify credentials in environment variables' })
+        body: JSON.stringify({ 
+          error: 'Missing Shopify credentials in environment variables',
+          missingDomain: !shopDomain,
+          missingToken: !accessToken
+        })
       };
+    }
+    
+    // Make sure the domain doesn't have the protocol
+    if (shopDomain.includes('https://') || shopDomain.includes('http://')) {
+      shopDomain = shopDomain.replace(/https?:\/\//, '');
+      console.log('Removed protocol from domain:', shopDomain);
+    }
+    
+    // Make sure the domain doesn't have admin path
+    if (shopDomain.includes('/admin')) {
+      shopDomain = shopDomain.replace(/\/admin.*$/, '');
+      console.log('Removed admin path from domain:', shopDomain);
     }
     
     console.log('Using Shopify domain:', shopDomain);
@@ -156,78 +192,184 @@ export async function handler(event, context) {
  * Create a new product in Shopify
  */
 async function createShopifyProduct(shopDomain, accessToken, productData) {
-  const url = `https://${shopDomain}/admin/api/2023-07/products.json`;
-  
-  const response = await fetch(url, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'X-Shopify-Access-Token': accessToken
-    },
-    body: JSON.stringify({ product: productData })
-  });
-  
-  if (!response.ok) {
-    const errorData = await response.json();
-    throw new Error(`Shopify API error: ${JSON.stringify(errorData)}`);
+  try {
+    console.log('Creating new Shopify product with title:', productData.title);
+    
+    // Make API version configurable with a fallback
+    const apiVersion = process.env.SHOPIFY_API_VERSION || '2023-07';
+    const url = `https://${shopDomain}/admin/api/${apiVersion}/products.json`;
+    
+    console.log(`Making request to: ${url}`);
+    
+    // Verify the product data is valid
+    if (!productData.title) {
+      throw new Error('Product title is required');
+    }
+    
+    if (!productData.variants || productData.variants.length === 0 || !productData.variants[0].price) {
+      console.warn('WARNING: Product variants may be incomplete:', JSON.stringify(productData.variants));
+    }
+    
+    // Create the product
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Shopify-Access-Token': accessToken
+      },
+      body: JSON.stringify({ product: productData })
+    });
+    
+    if (!response.ok) {
+      // Try to get error response as JSON
+      let errorText = await response.text();
+      let errorData;
+      
+      try {
+        errorData = JSON.parse(errorText);
+        console.error('Shopify API error details:', JSON.stringify(errorData));
+      } catch (e) {
+        // If parsing as JSON fails, use the raw text
+        console.error('Shopify API error (raw):', errorText);
+        errorData = { errors: `Status ${response.status}: ${errorText.substring(0, 100)}...` };
+      }
+      
+      throw new Error(`Shopify API error: ${JSON.stringify(errorData)}`);
+    }
+    
+    const result = await response.json();
+    console.log('Successfully created Shopify product with ID:', result.product?.id);
+    return result;
+  } catch (error) {
+    console.error('Error creating Shopify product:', error.message);
+    throw error;
   }
-  
-  return await response.json();
 }
 
 /**
  * Attach an image to a Shopify product using a URL
  */
 async function attachImageToProduct(shopDomain, accessToken, productId, imageUrl) {
-  const url = `https://${shopDomain}/admin/api/2023-07/products/${productId}/images.json`;
-  
-  const response = await fetch(url, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'X-Shopify-Access-Token': accessToken
-    },
-    body: JSON.stringify({
+  try {
+    console.log(`Attaching image from URL to product ${productId}`);
+    const url = `https://${shopDomain}/admin/api/2023-07/products/${productId}/images.json`;
+    console.log(`Making request to: ${url}`);
+    
+    // For URL-based uploads, the URL must be publicly accessible
+    if (imageUrl.startsWith('http://localhost') || imageUrl.startsWith('file://')) {
+      console.warn('WARNING: Image URL is a local URL which Shopify cannot access');
+    }
+    
+    const imageData = {
       image: {
         src: imageUrl,
         alt: 'Custom design created with Dzine.ai'
       }
-    })
-  });
-  
-  if (!response.ok) {
-    const errorData = await response.json();
-    throw new Error(`Shopify API error: ${JSON.stringify(errorData)}`);
+    };
+    
+    console.log(`Using image URL: ${imageUrl.substring(0, 50)}...`);
+    
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Shopify-Access-Token': accessToken
+      },
+      body: JSON.stringify(imageData)
+    });
+    
+    if (!response.ok) {
+      // Try to get error response as JSON
+      let errorText = await response.text();
+      let errorData;
+      
+      try {
+        errorData = JSON.parse(errorText);
+        console.error('Shopify API error details:', JSON.stringify(errorData));
+      } catch (e) {
+        // If parsing as JSON fails, use the raw text
+        console.error('Shopify API error (raw):', errorText);
+        errorData = { errors: `Status ${response.status}: ${errorText.substring(0, 100)}...` };
+      }
+      
+      throw new Error(`Shopify API error: ${JSON.stringify(errorData)}`);
+    }
+    
+    const result = await response.json();
+    console.log('Successfully attached image URL to product');
+    return result;
+  } catch (error) {
+    console.error('Error attaching image URL to product:', error.message);
+    throw error;
   }
-  
-  return await response.json();
 }
 
 /**
  * Attach an image to a Shopify product using base64 data
  */
 async function attachBase64ImageToProduct(shopDomain, accessToken, productId, base64Data, filename) {
-  const url = `https://${shopDomain}/admin/api/2023-07/products/${productId}/images.json`;
-  
-  const response = await fetch(url, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'X-Shopify-Access-Token': accessToken
-    },
-    body: JSON.stringify({
+  try {
+    // Check if base64 data is too large (Shopify has limits)
+    const dataSizeInBytes = Math.ceil((base64Data.length / 4) * 3);
+    const dataSizeInMB = dataSizeInBytes / (1024 * 1024);
+    console.log(`Image size: ${dataSizeInMB.toFixed(2)}MB`);
+    
+    // If larger than 20MB, Shopify might reject it
+    if (dataSizeInMB > 20) {
+      console.warn('WARNING: Image is larger than 20MB, Shopify may reject it');
+    }
+    
+    // Attempt to compress very large images
+    let finalBase64Data = base64Data;
+    if (dataSizeInMB > 8) {
+      console.log('Image is large, treating as potentially problematic');
+    }
+    
+    const url = `https://${shopDomain}/admin/api/2023-07/products/${productId}/images.json`;
+    console.log(`Making request to: ${url}`);
+    
+    const imageData = {
       image: {
-        attachment: base64Data,
+        attachment: finalBase64Data,
         filename: filename,
         alt: 'Custom design created with Dzine.ai'
       }
-    })
-  });
-  
-  if (!response.ok) {
-    const errorData = await response.json();
-    throw new Error(`Shopify API error: ${JSON.stringify(errorData)}`);
+    };
+    
+    // Log request size without showing actual image data
+    console.log(`Request body size: ${JSON.stringify(imageData).length - finalBase64Data.length + 100}B + image data`);
+    
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Shopify-Access-Token': accessToken
+      },
+      body: JSON.stringify(imageData)
+    });
+    
+    if (!response.ok) {
+      // Try to get error response as JSON
+      let errorText = await response.text();
+      let errorData;
+      
+      try {
+        errorData = JSON.parse(errorText);
+        console.error('Shopify API error details:', JSON.stringify(errorData));
+      } catch (e) {
+        // If parsing as JSON fails, use the raw text
+        console.error('Shopify API error (raw):', errorText);
+        errorData = { errors: `Status ${response.status}: ${errorText.substring(0, 100)}...` };
+      }
+      
+      throw new Error(`Shopify API error: ${JSON.stringify(errorData)}`);
+    }
+    
+    const result = await response.json();
+    console.log('Successfully attached image to product');
+    return result;
+  } catch (error) {
+    console.error('Error attaching base64 image to product:', error.message);
+    throw error;
   }
-  
-  return await response.json();
 }
