@@ -171,10 +171,11 @@ export const handler = async (event, context) => {
     };
 
     // Call the Prodigi API to get quote
-    // Always use the sandbox URL for testing - production would be 'https://api.prodigi.com/v4.0/quotes'
-    const apiUrl = 'https://api.sandbox.prodigi.com/v4.0/quotes';
+    // Using the live production environment since sandbox is not authenticating properly
+    const apiUrl = 'https://api.prodigi.com/v4.0/quotes';
     
     console.log('Prodigi API request to URL:', apiUrl);
+    console.log('Using LIVE environment - This will create real quotes in your Prodigi account');
     console.log('Request body:', JSON.stringify(requestBody, null, 2));
     
     // Clean the API key of any whitespace to prevent auth issues
