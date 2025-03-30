@@ -231,6 +231,11 @@ export async function handler(event, context) {
         if (shippingRates && shippingCountry) {
           try {
             console.log(`Creating/updating delivery profile for country: ${shippingCountry}`);
+            console.log(`Shipping rates provided:`, 
+              Array.isArray(shippingRates) 
+                ? `${shippingRates.length} rates` 
+                : typeof shippingRates);
+            
             // Create or get delivery profile for this country
             deliveryProfileResult = await createOrUpdateDeliveryProfile(
               shopDomain,
@@ -323,7 +328,7 @@ export async function handler(event, context) {
           body: JSON.stringify({
             product: productResponse.product,
             warning: "Product created but image could not be attached: " + imageError.message,
-            shipping: deliveryProfileResult,
+            shipping: deliveryProfileResult || null, // Make sure it's not undefined
             success: true
           })
         };
@@ -743,6 +748,9 @@ async function createOrUpdateDeliveryProfile(shopDomain, accessToken, countryCod
       
       // Prepare the rate definitions
       const rateDefinitions = rates.map(rate => {
+        // Log the rate object for debugging
+        console.log('Processing rate:', JSON.stringify(rate));
+        
         // If rate is a simple number, create a basic rate with that price
         if (typeof rate === 'number') {
           return {
@@ -760,6 +768,7 @@ async function createOrUpdateDeliveryProfile(shopDomain, accessToken, countryCod
         }
         // Default fallback
         else {
+          console.log('Using default shipping rate - could not parse rate object:', rate);
           return {
             name: "Prodigi Standard Shipping",
             price: { amount: "10.00" },
@@ -791,13 +800,28 @@ async function createOrUpdateDeliveryProfile(shopDomain, accessToken, countryCod
       
       const profileInput = {
         name: profileName,
-        locationGroup: {
-          locationGroupType: "COUNTRY",
-          locations: [countryCode]
+        profileType: "PRODUCT", // Explicitly set to PRODUCT type
+        zoneLocations: {
+          locationGroupZones: [{
+            name: `${countryCode} Zone`,
+            countries: [{
+              code: countryCode
+            }]
+          }]
         },
-        profileLocation: {
-          zone: deliveryZone
-        }
+        deliveryMethodDefinitions: rateDefinitions.map(rate => ({
+          name: rate.name,
+          methodType: "SHIPPING",
+          rateDefinition: {
+            price: rate.price,
+            weights: [{
+              value: {
+                value: "0.01",
+                unit: "KILOGRAMS"
+              }
+            }]
+          }
+        }))
       };
       
       const createResponse = await fetch(graphqlEndpoint, {
@@ -840,6 +864,9 @@ async function createOrUpdateDeliveryProfile(shopDomain, accessToken, countryCod
       
       // Prepare the rate definitions similarly to create
       const rateDefinitions = rates.map(rate => {
+        // Log the rate object for debugging
+        console.log('Processing rate for update:', JSON.stringify(rate));
+        
         if (typeof rate === 'number') {
           return {
             name: `Prodigi Shipping ${countryCode}`,
@@ -852,6 +879,7 @@ async function createOrUpdateDeliveryProfile(shopDomain, accessToken, countryCod
             price: { amount: parseFloat(rateAmount).toFixed(2) },
           };
         } else {
+          console.log('Using default shipping rate for update - could not parse rate object:', rate);
           return {
             name: "Prodigi Standard Shipping",
             price: { amount: "10.00" },
@@ -877,16 +905,28 @@ async function createOrUpdateDeliveryProfile(shopDomain, accessToken, countryCod
       
       const profileInput = {
         name: profileName,
-        locationGroup: {
-          locationGroupType: "COUNTRY",
-          locations: [countryCode]
+        profileType: "PRODUCT", // Explicitly set to PRODUCT type
+        zoneLocations: {
+          locationGroupZones: [{
+            name: `${countryCode} Zone`,
+            countries: [{
+              code: countryCode
+            }]
+          }]
         },
-        profileLocation: {
-          zone: {
-            countries: [{ code: countryCode }],
-            rateDefinitions
+        deliveryMethodDefinitions: rateDefinitions.map(rate => ({
+          name: rate.name,
+          methodType: "SHIPPING",
+          rateDefinition: {
+            price: rate.price,
+            weights: [{
+              value: {
+                value: "0.01",
+                unit: "KILOGRAMS"
+              }
+            }]
           }
-        }
+        }))
       };
       
       const updateResponse = await fetch(graphqlEndpoint, {

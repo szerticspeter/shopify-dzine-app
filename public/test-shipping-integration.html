@@ -289,7 +289,16 @@
         // Convert image to base64
         const base64Image = await fileToBase64(imageFile);
         
-        // Build request data
+        // Build request data - ensure shipping rates are properly formatted
+        const formattedShippingRates = currentQuote.formattedShippingRates.map(rate => ({
+          name: rate.name,
+          price: rate.price,
+          method: rate.method || 'Standard',
+          currency: rate.currency || 'USD'
+        }));
+        
+        console.log('Formatted shipping rates:', formattedShippingRates);
+        
         const requestData = {
           title,
           description,
@@ -299,7 +308,7 @@
           },
           imageUrl: base64Image,
           shippingCountry: countrySelect.value,
-          shippingRates: currentQuote.formattedShippingRates
+          shippingRates: formattedShippingRates
         };
         
         // Call product creation API
