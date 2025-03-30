@@ -89,7 +89,10 @@
   <div class="section">
     <h2>Create Test Product</h2>
     <p>This section creates a simple test product to check if the Shopify API integration is working.</p>
-    <button id="createProductBtn">Create Test Product <span id="productLoader" class="loading hidden"></span></button>
+    <div>
+      <button id="createProductBtn">Create Basic Test Product <span id="productLoader" class="loading hidden"></span></button>
+      <button id="createProductWithShippingBtn">Create Product with Shipping <span id="productShippingLoader" class="loading hidden"></span></button>
+    </div>
     <div id="productResults" class="hidden">
       <h3>Product Creation Results:</h3>
       <pre id="productData"></pre>
@@ -119,7 +122,9 @@
     const envData = document.getElementById('envData');
     
     const createProductBtn = document.getElementById('createProductBtn');
+    const createProductWithShippingBtn = document.getElementById('createProductWithShippingBtn');
     const productLoader = document.getElementById('productLoader');
+    const productShippingLoader = document.getElementById('productShippingLoader');
     const productResults = document.getElementById('productResults');
     const productData = document.getElementById('productData');
     
@@ -233,6 +238,106 @@
       } finally {
         // Hide loader
         productLoader.classList.add('hidden');
+      }
+    });
+    
+    // Create product with shipping
+    createProductWithShippingBtn.addEventListener('click', async () => {
+      // Clear previous results
+      productData.textContent = '';
+      productResults.classList.add('hidden');
+      
+      // Show loader
+      productShippingLoader.classList.remove('hidden');
+      
+      try {
+        // First get a Prodigi quote
+        const quoteResponse = await fetch(PRODIGI_QUOTE_API, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            countryCode: 'US',
+            currencyCode: 'USD'
+          })
+        });
+        
+        // Get the quote data
+        const quoteText = await quoteResponse.text();
+        let quoteData;
+        
+        try {
+          quoteData = JSON.parse(quoteText);
+        } catch (parseError) {
+          throw new Error(`Failed to parse Prodigi quote response: ${quoteText.substring(0, 200)}`);
+        }
+        
+        if (!quoteData.formattedShippingRates || !quoteData.formattedShippingRates.length) {
+          throw new Error('No shipping rates found in Prodigi quote');
+        }
+        
+        console.log('Retrieved shipping rates:', quoteData.formattedShippingRates);
+        
+        // Use the shipping rates to create a product
+        const testProduct = {
+          title: "Test Product with Shipping " + new Date().toISOString(),
+          description: "This is a test product with shipping rates from Prodigi",
+          price: {
+            product: quoteData.formattedShippingRates[0].productCost || "25.00",
+            shipping: quoteData.formattedShippingRates[0].price || "5.00"
+          },
+          imageUrl: "https://picsum.photos/id/26/800/600", // Random placeholder image
+          shippingCountry: "US",
+          shippingRates: quoteData.formattedShippingRates
+        };
+        
+        console.log('Creating product with shipping:', testProduct);
+        
+        const response = await fetch(CREATE_PRODUCT_API, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify(testProduct)
+        });
+        
+        // Always get the raw response first
+        const responseText = await response.text();
+        console.log('Raw product creation response:', responseText);
+        
+        try {
+          const data = JSON.parse(responseText);
+          console.log('Parsed product creation response:', data);
+          
+          // Display the results
+          productData.textContent = JSON.stringify(data, null, 2);
+          productResults.classList.remove('hidden');
+          
+          if (data.error) {
+            productData.insertAdjacentHTML('afterbegin', `<div class="status-error">✗ Product with shipping creation failed: ${data.error}</div>\n\n`);
+          } else if (data.product && data.product.id) {
+            let shippingStatus = '';
+            if (data.shipping && data.shipping.profileId) {
+              shippingStatus = ` with shipping profile ${data.shipping.profileId}`;
+            } else {
+              shippingStatus = ' but shipping profile creation may have failed';
+            }
+            
+            productData.insertAdjacentHTML('afterbegin', `<div class="status-success">✓ Product created successfully with ID: ${data.product.id}${shippingStatus}</div>\n\n`);
+          }
+        } catch (parseError) {
+          console.error('Failed to parse product response:', parseError);
+          productData.textContent = responseText;
+          productResults.classList.remove('hidden');
+        }
+      } catch (error) {
+        console.error('Error creating product with shipping:', error);
+        productData.textContent = `Error: ${error.message}`;
+        productResults.classList.remove('hidden');
+      } finally {
+        // Hide loader
+        productShippingLoader.classList.add('hidden');
       }
     });
     

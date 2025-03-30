@@ -411,16 +411,22 @@ export async function handler(event, context) {
         name: error.name
       },
       request: {
-        body: typeof event.body === 'string' ? JSON.parse(event.body) : event.body,
+        body: (() => {
+          try {
+            return typeof event.body === 'string' ? JSON.parse(event.body) : event.body;
+          } catch (e) {
+            return { error: "Could not parse body", raw: event.body };
+          }
+        })(),
         headers: event.headers,
         method: event.httpMethod
       },
       environment: {
-        apiVersion,
-        shopDomain: shopDomain || 'not_set',
-        hasAccessToken: !!accessToken,
-        hasApiKey: !!apiKey,
-        hasApiSecret: !!apiSecret,
+        apiVersion: process.env.SHOPIFY_API_VERSION || '2023-07',
+        shopDomain: typeof shopDomain !== 'undefined' ? shopDomain : 'not_set',
+        hasAccessToken: typeof accessToken !== 'undefined' ? !!accessToken : false,
+        hasApiKey: typeof apiKey !== 'undefined' ? !!apiKey : false,
+        hasApiSecret: typeof apiSecret !== 'undefined' ? !!apiSecret : false,
         nodeEnv: process.env.NODE_ENV
       }
     };
