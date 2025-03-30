@@ -913,38 +913,55 @@ async function createOrUpdateDeliveryProfile(shopDomain, accessToken, countryCod
       `;
       
       // Build delivery profile with MANUAL rate providers (flat rates)
+      // Based on latest Shopify GraphQL Admin API documentation
       const profileInput = {
         name: profileName,
         profileType: "CUSTOM", // Use CUSTOM type for flat rates
-        zoneCountrySelection: {
-          restOfWorld: false,
-          countries: [{ code: countryCode }]
-        },
-        // Create flat rate methods
-        deliveryMethodDefinitions: rateDefinitions.map(rate => {
-          // Extract the price value properly
-          let priceValue;
-          if (typeof rate.price === 'object' && rate.price.amount) {
-            priceValue = parseFloat(rate.price.amount);
-          } else if (typeof rate.price === 'string') {
-            priceValue = parseFloat(rate.price);
-          } else if (typeof rate.price === 'number') {
-            priceValue = rate.price;
-          } else {
-            priceValue = 10.00; // Default fallback
-          }
-          
-          // Manual shipping rate for flat rate shipping
-          return {
-            name: rate.name,
-            methodType: "MANUAL", // MANUAL instead of SHIPPING for flat rates
-            rateProvider: {
-              flat: {
-                price: { amount: priceValue.toFixed(2) }
+        locationGroups: [
+          {
+            locationGroupType: "COUNTRY",
+            locations: [countryCode],
+            locationGroupZones: [
+              {
+                name: `${countryCode} Zone`,
+                countries: [{ code: countryCode }],
+                methodDefinitions: rateDefinitions.map(rate => {
+                  // Extract the price value properly
+                  let priceValue;
+                  if (typeof rate.price === 'object' && rate.price.amount) {
+                    priceValue = parseFloat(rate.price.amount);
+                  } else if (typeof rate.price === 'string') {
+                    priceValue = parseFloat(rate.price);
+                  } else if (typeof rate.price === 'number') {
+                    priceValue = rate.price;
+                  } else {
+                    priceValue = 10.00; // Default fallback
+                  }
+                  
+                  // Manual shipping rate with weight conditions for flat rate shipping
+                  return {
+                    name: rate.name,
+                    methodType: "MANUAL", // MANUAL for flat rates
+                    active: true,
+                    rateProvider: {
+                      flat: {
+                        price: { amount: priceValue.toFixed(2) }
+                      }
+                    },
+                    weightConditions: [
+                      {
+                        criteriaRange: {
+                          minimum: { value: "0.0", unit: "KILOGRAMS" },
+                          maximum: { value: "50.0", unit: "KILOGRAMS" }
+                        }
+                      }
+                    ]
+                  };
+                })
               }
-            }
-          };
-        })
+            ]
+          }
+        ]
       };
       
       console.log("Creating delivery profile with flat rates:", JSON.stringify(profileInput));
@@ -1076,15 +1093,33 @@ async function createOrUpdateDeliveryProfile(shopDomain, accessToken, countryCod
         }
       `;
       
-      // Build the profile update payload
+      // Build the profile update payload based on latest API structure
       const updateProfileInput = {
         name: profileName,
         profileType: "CUSTOM", // Use CUSTOM type for flat rates
-        zoneCountrySelection: {
-          restOfWorld: false,
-          countries: [{ code: countryCode }]
-        },
-        deliveryMethodDefinitions: updatedRateDefinitions
+        locationGroups: [
+          {
+            locationGroupType: "COUNTRY",
+            locations: [countryCode],
+            locationGroupZones: [
+              {
+                name: `${countryCode} Zone`,
+                countries: [{ code: countryCode }],
+                methodDefinitions: updatedRateDefinitions.map(rate => ({
+                  ...rate,
+                  weightConditions: [
+                    {
+                      criteriaRange: {
+                        minimum: { value: "0.0", unit: "KILOGRAMS" },
+                        maximum: { value: "50.0", unit: "KILOGRAMS" }
+                      }
+                    }
+                  ]
+                }))
+              }
+            ]
+          }
+        ]
       };
       
       console.log(`Updating delivery profile with ID ${profileId}:`, JSON.stringify(updateProfileInput));
