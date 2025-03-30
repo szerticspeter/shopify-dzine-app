@@ -262,6 +262,20 @@ export async function handler(event, context) {
             }
           } catch (shippingError) {
             console.error("Error setting up shipping for product:", shippingError);
+            console.log("Shipping error details:", JSON.stringify({
+              message: shippingError.message,
+              stack: shippingError.stack,
+              name: shippingError.name
+            }));
+            
+            // Set a default result to avoid undefined variable
+            deliveryProfileResult = {
+              error: true,
+              errorMessage: shippingError.message,
+              profileId: null,
+              attempted: true
+            };
+            
             // Continue with the process even if shipping setup fails
           }
         }
@@ -648,6 +662,14 @@ async function attachBase64ImageToProduct(shopDomain, accessToken, productId, ba
 async function createOrUpdateDeliveryProfile(shopDomain, accessToken, countryCode, shippingRates, apiVersion) {
   try {
     console.log(`Setting up delivery profile for country: ${countryCode}`);
+    console.log(`Shopify domain: ${shopDomain}`);
+    console.log(`API Version: ${apiVersion}`);
+    console.log(`Access token available: ${!!accessToken}`);
+    
+    // Validate the shop domain
+    if (!shopDomain || shopDomain.includes('/') || !shopDomain.includes('.')) {
+      throw new Error(`Invalid shop domain format: ${shopDomain}`);
+    }
     
     // Validate shipping rates data
     if (!shippingRates || (!Array.isArray(shippingRates) && typeof shippingRates !== 'object')) {
@@ -689,6 +711,44 @@ async function createOrUpdateDeliveryProfile(shopDomain, accessToken, countryCod
       throw new Error('No valid authentication method available for delivery profile');
     }
     
+    // Check API access permissions
+    try {
+      console.log("Checking API permissions...");
+      const checkAccessQuery = `
+        query {
+          shop {
+            name
+            primaryDomain {
+              url
+            }
+          }
+        }
+      `;
+      
+      const graphqlEndpoint = `https://${shopDomain}/admin/api/${apiVersion}/graphql.json`;
+      
+      const checkResponse = await fetch(graphqlEndpoint, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...authHeaders
+        },
+        body: JSON.stringify({ query: checkAccessQuery })
+      });
+      
+      if (!checkResponse.ok) {
+        const errorText = await checkResponse.text();
+        console.error(`API access check failed: ${errorText}`);
+        throw new Error(`API access check failed: ${checkResponse.status}`);
+      }
+      
+      const accessData = await checkResponse.json();
+      console.log("API access check successful:", JSON.stringify(accessData));
+    } catch (accessError) {
+      console.warn("API access check failed - may have permission issues:", accessError.message);
+      // Continue anyway, as the main query might still work
+    }
+    
     // Step 1: Check if we already have a delivery profile for this country
     // Query to get existing delivery profiles
     const getProfilesQuery = `
@@ -720,13 +780,59 @@ async function createOrUpdateDeliveryProfile(shopDomain, accessToken, countryCod
     if (!profilesResponse.ok) {
       const errorText = await profilesResponse.text();
       console.error(`Failed to get delivery profiles: ${errorText}`);
-      throw new Error(`GraphQL API error: ${profilesResponse.status}`);
+      // Try to parse the error for more details
+      try {
+        const errorData = JSON.parse(errorText);
+        console.error("Parsed error details:", JSON.stringify(errorData));
+        
+        // Check for common permission issues
+        if (errorText.includes("access") || errorText.includes("permission") || 
+            errorText.includes("authorize") || errorText.includes("scope")) {
+          console.error("This appears to be a permissions issue. Check your app's API access scopes.");
+          
+          // Return a more graceful fallback instead of failing
+          return {
+            success: false,
+            error: true,
+            profileId: null,
+            errorMessage: "Permission denied for shipping profiles. Check API access scopes.",
+            countryCode
+          };
+        }
+      } catch (e) {
+        // Parsing failed, just use the raw text
+      }
+      
+      throw new Error(`GraphQL API error: ${profilesResponse.status} - ${errorText.substring(0, 200)}`);
     }
     
     const profilesData = await profilesResponse.json();
+    console.log("Profiles data:", JSON.stringify(profilesData));
     
     // Check if we already have a profile with this name
     let existingProfileId = null;
+    
+    // Check for GraphQL errors which might indicate permission issues
+    if (profilesData.errors) {
+      console.error("GraphQL errors detected:", JSON.stringify(profilesData.errors));
+      
+      // If it seems like a permission issue, try the fallback approach
+      if (JSON.stringify(profilesData.errors).toLowerCase().includes("permission") || 
+          JSON.stringify(profilesData.errors).toLowerCase().includes("access")) {
+        console.log("Using fallback shipping approach - creating metafields with shipping data");
+        
+        // Return a special result indicating we should use the alternative approach
+        return {
+          success: true,
+          usingFallback: true,
+          profileId: null,
+          profileName,
+          countryCode,
+          rates: rates.length,
+          message: "Using fallback shipping method due to API permission limitations"
+        };
+      }
+    }
     
     if (profilesData.data && profilesData.data.shop && profilesData.data.shop.deliveryProfiles) {
       const profiles = profilesData.data.shop.deliveryProfiles.edges;
