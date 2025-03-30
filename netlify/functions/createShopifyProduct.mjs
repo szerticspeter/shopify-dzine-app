@@ -1,8 +1,9 @@
 import fetch from 'node-fetch';
 
 /**
- * Netlify function to create a Shopify product with an image
+ * Netlify function to create a Shopify product with an image and shipping rates
  * Uses environment variables for authentication
+ * Integrates with Prodigi for dynamic shipping rates
  */
 export async function handler(event, context) {
   // Only allow POST requests
@@ -47,7 +48,7 @@ export async function handler(event, context) {
       };
     }
     
-    const { title, description, price, imageUrl, metafields } = requestBody;
+    const { title, description, price, imageUrl, metafields = [], shippingCountry = 'US', shippingRates = null } = requestBody;
     
     // Log request for debugging
     console.log('Creating product with:', { 
@@ -56,7 +57,9 @@ export async function handler(event, context) {
       hasImage: !!imageUrl,
       imageUrlType: imageUrl ? (imageUrl.startsWith('data:') ? 'base64' : 'URL') : 'none',
       imageUrlLength: imageUrl ? imageUrl.length : 0,
-      hasMetafields: !!metafields
+      hasMetafields: !!metafields,
+      shippingCountry,
+      hasShippingRates: !!shippingRates
     });
     
     // Validate required parameters
@@ -158,6 +161,18 @@ export async function handler(event, context) {
     const apiVersion = process.env.SHOPIFY_API_VERSION || '2023-07';
 
     // Prepare product data
+    // Extract shipping cost from the price object if available
+    let productPrice = price;
+    let shippingCost = null;
+    
+    if (typeof price === 'object' && price.product && price.shipping) {
+      // Calculate product price with 30% markup on the Prodigi base price
+      const prodigiPrice = parseFloat(price.product);
+      productPrice = (prodigiPrice * 1.3).toFixed(2); // 30% markup
+      shippingCost = parseFloat(price.shipping);
+      console.log(`Using detailed pricing - Prodigi base: ${prodigiPrice}, With markup: ${productPrice}, Shipping: ${shippingCost}`);
+    }
+    
     const productData = {
       title,
       body_html: description || '',
@@ -166,12 +181,39 @@ export async function handler(event, context) {
       status: 'active', // Ensure the product is set to active
       variants: [
         {
-          price: price,
+          price: productPrice,
           inventory_management: 'shopify',
           inventory_quantity: 10
         }
       ]
     };
+    
+    // Store shipping cost in metafields for reference
+    // Note: This doesn't directly affect checkout - see comment below
+    const metafieldsToAdd = metafields || [];
+    
+    if (shippingCost) {
+      // Add shipping cost to metafields
+      metafieldsToAdd.push({
+        namespace: 'shipping',
+        key: 'cost',
+        value: shippingCost.toString(),
+        type: 'single_line_text_field'
+      });
+      
+      // Add shipping provider info
+      metafieldsToAdd.push({
+        namespace: 'shipping',
+        key: 'provider',
+        value: 'Prodigi',
+        type: 'single_line_text_field'
+      });
+      
+      console.log('Added shipping info to metafields with cost:', shippingCost);
+      
+      // Note: Actual shipping rates at checkout are set through Shopify's shipping zones
+      // This metafield is just for reference/tracking
+    }
 
     // Step 1: Create the product first
     const productResponse = await createShopifyProduct(shopDomain, accessToken, productData);
@@ -181,6 +223,44 @@ export async function handler(event, context) {
       const productId = productResponse.product.id;
       
       try {
+        // Initialize variables to track delivery profile operations
+        let deliveryProfileId = null;
+        let deliveryProfileResult = null;
+        
+        // Step 2a: Create or update delivery profile with shipping rates if provided
+        if (shippingRates && shippingCountry) {
+          try {
+            console.log(`Creating/updating delivery profile for country: ${shippingCountry}`);
+            // Create or get delivery profile for this country
+            deliveryProfileResult = await createOrUpdateDeliveryProfile(
+              shopDomain,
+              accessToken,
+              shippingCountry,
+              shippingRates,
+              apiVersion
+            );
+            
+            if (deliveryProfileResult && deliveryProfileResult.profileId) {
+              deliveryProfileId = deliveryProfileResult.profileId;
+              console.log(`Successfully got delivery profile ID: ${deliveryProfileId}`);
+              
+              // Assign the product to this delivery profile
+              await assignProductToDeliveryProfile(
+                shopDomain,
+                accessToken,
+                productId,
+                deliveryProfileId,
+                apiVersion
+              );
+              
+              console.log(`Successfully assigned product ${productId} to delivery profile ${deliveryProfileId}`);
+            }
+          } catch (shippingError) {
+            console.error("Error setting up shipping for product:", shippingError);
+            // Continue with the process even if shipping setup fails
+          }
+        }
+        
         // Handle base64 data URLs directly
         let imageResponse;
         
@@ -205,14 +285,14 @@ export async function handler(event, context) {
         
         // Step A: Add metafields if provided (after image is attached)
         let metafieldsResult = null;
-        if (metafields && Array.isArray(metafields) && metafields.length > 0) {
+        if (metafieldsToAdd && Array.isArray(metafieldsToAdd) && metafieldsToAdd.length > 0) {
           try {
-            console.log(`Adding ${metafields.length} metafields to product ${productId}`);
+            console.log(`Adding ${metafieldsToAdd.length} metafields to product ${productId}`);
             metafieldsResult = await addMetafieldsToProduct(
               shopDomain,
               accessToken,
               productId,
-              metafields,
+              metafieldsToAdd,
               apiVersion
             );
           } catch (metafieldsError) {
@@ -221,7 +301,7 @@ export async function handler(event, context) {
           }
         }
         
-        // Return success with product and image data
+        // Return success with product, image, and shipping data
         return {
           statusCode: 200,
           headers,
@@ -229,19 +309,21 @@ export async function handler(event, context) {
             product: productResponse.product,
             image: imageResponse.image,
             metafields: metafieldsResult,
+            shipping: deliveryProfileResult,
             success: true
           })
         };
       } catch (imageError) {
         console.error("Error attaching image:", imageError);
         
-        // Even if image upload fails, return product data
+        // Even if image upload fails, return product data with shipping info if available
         return {
           statusCode: 201, // Created, but with warning
           headers,
           body: JSON.stringify({
             product: productResponse.product,
             warning: "Product created but image could not be attached: " + imageError.message,
+            shipping: deliveryProfileResult,
             success: true
           })
         };
@@ -550,6 +632,469 @@ async function attachBase64ImageToProduct(shopDomain, accessToken, productId, ba
     return result;
   } catch (error) {
     console.error('Error attaching base64 image to product:', error.message);
+    throw error;
+  }
+}
+
+/**
+ * Create or update a delivery profile with shipping rates for a specific country
+ * Uses the Shopify GraphQL Admin API
+ */
+async function createOrUpdateDeliveryProfile(shopDomain, accessToken, countryCode, shippingRates, apiVersion) {
+  try {
+    console.log(`Setting up delivery profile for country: ${countryCode}`);
+    
+    // Validate shipping rates data
+    if (!shippingRates || (!Array.isArray(shippingRates) && typeof shippingRates !== 'object')) {
+      console.error('Invalid shipping rates format:', shippingRates);
+      throw new Error('Invalid shipping rates format');
+    }
+    
+    // If shipping rates is a single object, convert to array
+    const rates = Array.isArray(shippingRates) ? shippingRates : [shippingRates];
+    console.log(`Processing ${rates.length} shipping rate(s) for ${countryCode}`);
+    
+    // Get the profile name using country code
+    const profileName = `Prodigi Shipping - ${countryCode}`;
+    
+    // Ensure valid API version
+    apiVersion = apiVersion || '2023-07';
+    
+    // Generate auth headers (same pattern as other functions)
+    let authHeaders = {};
+    
+    if (accessToken) {
+      authHeaders = {
+        'X-Shopify-Access-Token': accessToken
+      };
+    } else if (global.shopifyAuth) {
+      if (global.shopifyAuth.accessToken) {
+        authHeaders = {
+          'X-Shopify-Access-Token': global.shopifyAuth.accessToken
+        };
+      } else if (global.shopifyAuth.apiKey && global.shopifyAuth.apiSecret) {
+        const authString = Buffer.from(`${global.shopifyAuth.apiKey}:${global.shopifyAuth.apiSecret}`).toString('base64');
+        authHeaders = {
+          'Authorization': `Basic ${authString}`
+        };
+      }
+    }
+    
+    if (Object.keys(authHeaders).length === 0) {
+      throw new Error('No valid authentication method available for delivery profile');
+    }
+    
+    // Step 1: Check if we already have a delivery profile for this country
+    // Query to get existing delivery profiles
+    const getProfilesQuery = `
+      query {
+        shop {
+          deliveryProfiles(first: 20) {
+            edges {
+              node {
+                id
+                name
+                default
+              }
+            }
+          }
+        }
+      }
+    `;
+    
+    const graphqlEndpoint = `https://${shopDomain}/admin/api/${apiVersion}/graphql.json`;
+    const profilesResponse = await fetch(graphqlEndpoint, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...authHeaders
+      },
+      body: JSON.stringify({ query: getProfilesQuery })
+    });
+    
+    if (!profilesResponse.ok) {
+      const errorText = await profilesResponse.text();
+      console.error(`Failed to get delivery profiles: ${errorText}`);
+      throw new Error(`GraphQL API error: ${profilesResponse.status}`);
+    }
+    
+    const profilesData = await profilesResponse.json();
+    
+    // Check if we already have a profile with this name
+    let existingProfileId = null;
+    
+    if (profilesData.data && profilesData.data.shop && profilesData.data.shop.deliveryProfiles) {
+      const profiles = profilesData.data.shop.deliveryProfiles.edges;
+      const matchingProfile = profiles.find(edge => edge.node.name === profileName);
+      
+      if (matchingProfile) {
+        existingProfileId = matchingProfile.node.id;
+        console.log(`Found existing delivery profile: ${profileName} with ID: ${existingProfileId}`);
+      }
+    }
+    
+    // Step 2: If profile exists, update it. Otherwise, create a new one.
+    let profileId = existingProfileId;
+    let profileResult;
+    
+    if (!profileId) {
+      // Create a new delivery profile
+      console.log(`Creating new delivery profile: ${profileName}`);
+      
+      // Prepare the rate definitions
+      const rateDefinitions = rates.map(rate => {
+        // If rate is a simple number, create a basic rate with that price
+        if (typeof rate === 'number') {
+          return {
+            name: `Prodigi Shipping ${countryCode}`,
+            price: { amount: rate.toFixed(2) },
+          };
+        } 
+        // If rate has name and price properties
+        else if (rate.name && (rate.price || rate.amount)) {
+          const rateAmount = rate.price || rate.amount;
+          return {
+            name: rate.name,
+            price: { amount: parseFloat(rateAmount).toFixed(2) },
+          };
+        }
+        // Default fallback
+        else {
+          return {
+            name: "Prodigi Standard Shipping",
+            price: { amount: "10.00" },
+          };
+        }
+      });
+      
+      // Prepare the country-specific delivery zone
+      const deliveryZone = {
+        countries: [{ code: countryCode }],
+        rateDefinitions
+      };
+      
+      // Create the profile - GraphQL mutation
+      const createProfileMutation = `
+        mutation deliveryProfileCreate($profile: DeliveryProfileInput!) {
+          deliveryProfileCreate(profile: $profile) {
+            profile {
+              id
+              name
+            }
+            userErrors {
+              field
+              message
+            }
+          }
+        }
+      `;
+      
+      const profileInput = {
+        name: profileName,
+        locationGroup: {
+          locationGroupType: "COUNTRY",
+          locations: [countryCode]
+        },
+        profileLocation: {
+          zone: deliveryZone
+        }
+      };
+      
+      const createResponse = await fetch(graphqlEndpoint, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...authHeaders
+        },
+        body: JSON.stringify({
+          query: createProfileMutation,
+          variables: { profile: profileInput }
+        })
+      });
+      
+      if (!createResponse.ok) {
+        const errorText = await createResponse.text();
+        console.error(`Failed to create delivery profile: ${errorText}`);
+        throw new Error(`GraphQL API error: ${createResponse.status}`);
+      }
+      
+      const createResult = await createResponse.json();
+      
+      if (createResult.errors) {
+        console.error('GraphQL errors:', createResult.errors);
+        throw new Error(`GraphQL errors: ${JSON.stringify(createResult.errors)}`);
+      }
+      
+      if (createResult.data?.deliveryProfileCreate?.userErrors?.length > 0) {
+        console.error('User errors:', createResult.data.deliveryProfileCreate.userErrors);
+        throw new Error(`User errors: ${JSON.stringify(createResult.data.deliveryProfileCreate.userErrors)}`);
+      }
+      
+      profileId = createResult.data?.deliveryProfileCreate?.profile?.id;
+      profileResult = createResult.data?.deliveryProfileCreate;
+      
+      console.log(`Created new delivery profile with ID: ${profileId}`);
+    } else {
+      // Update existing profile
+      console.log(`Updating existing delivery profile with ID: ${profileId}`);
+      
+      // Prepare the rate definitions similarly to create
+      const rateDefinitions = rates.map(rate => {
+        if (typeof rate === 'number') {
+          return {
+            name: `Prodigi Shipping ${countryCode}`,
+            price: { amount: rate.toFixed(2) },
+          };
+        } else if (rate.name && (rate.price || rate.amount)) {
+          const rateAmount = rate.price || rate.amount;
+          return {
+            name: rate.name,
+            price: { amount: parseFloat(rateAmount).toFixed(2) },
+          };
+        } else {
+          return {
+            name: "Prodigi Standard Shipping",
+            price: { amount: "10.00" },
+          };
+        }
+      });
+      
+      // Update the profile - GraphQL mutation
+      const updateProfileMutation = `
+        mutation deliveryProfileUpdate($id: ID!, $profile: DeliveryProfileInput!) {
+          deliveryProfileUpdate(id: $id, profile: $profile) {
+            profile {
+              id
+              name
+            }
+            userErrors {
+              field
+              message
+            }
+          }
+        }
+      `;
+      
+      const profileInput = {
+        name: profileName,
+        locationGroup: {
+          locationGroupType: "COUNTRY",
+          locations: [countryCode]
+        },
+        profileLocation: {
+          zone: {
+            countries: [{ code: countryCode }],
+            rateDefinitions
+          }
+        }
+      };
+      
+      const updateResponse = await fetch(graphqlEndpoint, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...authHeaders
+        },
+        body: JSON.stringify({
+          query: updateProfileMutation,
+          variables: {
+            id: profileId,
+            profile: profileInput
+          }
+        })
+      });
+      
+      if (!updateResponse.ok) {
+        const errorText = await updateResponse.text();
+        console.error(`Failed to update delivery profile: ${errorText}`);
+        throw new Error(`GraphQL API error: ${updateResponse.status}`);
+      }
+      
+      const updateResult = await updateResponse.json();
+      
+      if (updateResult.errors) {
+        console.error('GraphQL errors:', updateResult.errors);
+        throw new Error(`GraphQL errors: ${JSON.stringify(updateResult.errors)}`);
+      }
+      
+      if (updateResult.data?.deliveryProfileUpdate?.userErrors?.length > 0) {
+        console.error('User errors:', updateResult.data.deliveryProfileUpdate.userErrors);
+        throw new Error(`User errors: ${JSON.stringify(updateResult.data.deliveryProfileUpdate.userErrors)}`);
+      }
+      
+      profileResult = updateResult.data?.deliveryProfileUpdate;
+      console.log(`Updated delivery profile with ID: ${profileId}`);
+    }
+    
+    // Return the delivery profile information
+    return {
+      success: true,
+      profileId,
+      profileName,
+      countryCode,
+      rates: rates.length,
+      result: profileResult
+    };
+  } catch (error) {
+    console.error('Error creating/updating delivery profile:', error);
+    throw error;
+  }
+}
+
+/**
+ * Assign a product to a specific delivery profile
+ * Uses the Shopify GraphQL Admin API
+ */
+async function assignProductToDeliveryProfile(shopDomain, accessToken, productId, profileId, apiVersion) {
+  try {
+    console.log(`Assigning product ${productId} to delivery profile ${profileId}`);
+    
+    // Ensure valid API version
+    apiVersion = apiVersion || '2023-07';
+    
+    // Generate auth headers
+    let authHeaders = {};
+    
+    if (accessToken) {
+      authHeaders = {
+        'X-Shopify-Access-Token': accessToken
+      };
+    } else if (global.shopifyAuth) {
+      if (global.shopifyAuth.accessToken) {
+        authHeaders = {
+          'X-Shopify-Access-Token': global.shopifyAuth.accessToken
+        };
+      } else if (global.shopifyAuth.apiKey && global.shopifyAuth.apiSecret) {
+        const authString = Buffer.from(`${global.shopifyAuth.apiKey}:${global.shopifyAuth.apiSecret}`).toString('base64');
+        authHeaders = {
+          'Authorization': `Basic ${authString}`
+        };
+      }
+    }
+    
+    if (Object.keys(authHeaders).length === 0) {
+      throw new Error('No valid authentication method available for product assignment');
+    }
+    
+    // Convert REST API product ID to GraphQL-compatible ID if needed
+    // If the productId is numeric, convert to GraphQL ID format
+    let graphqlProductId = productId;
+    
+    if (!productId.includes('gid://')) {
+      graphqlProductId = `gid://shopify/Product/${productId}`;
+      console.log(`Converted REST product ID to GraphQL ID: ${graphqlProductId}`);
+    }
+    
+    // Assign product to delivery profile
+    const assignMutation = `
+      mutation deliveryProfileAssign($profileId: ID!, $productVariantIds: [ID!]!) {
+        deliveryProfileAssign(deliveryProfileId: $profileId, productVariantIds: $productVariantIds) {
+          userErrors {
+            field
+            message
+          }
+        }
+      }
+    `;
+    
+    // We need to get the variant IDs for this product
+    const getVariantsQuery = `
+      query getProductVariants($productId: ID!) {
+        product(id: $productId) {
+          id
+          title
+          variants(first: 10) {
+            edges {
+              node {
+                id
+                title
+              }
+            }
+          }
+        }
+      }
+    `;
+    
+    const graphqlEndpoint = `https://${shopDomain}/admin/api/${apiVersion}/graphql.json`;
+    
+    // Get product variants
+    const variantsResponse = await fetch(graphqlEndpoint, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...authHeaders
+      },
+      body: JSON.stringify({
+        query: getVariantsQuery,
+        variables: { productId: graphqlProductId }
+      })
+    });
+    
+    if (!variantsResponse.ok) {
+      const errorText = await variantsResponse.text();
+      console.error(`Failed to get product variants: ${errorText}`);
+      throw new Error(`GraphQL API error: ${variantsResponse.status}`);
+    }
+    
+    const variantsResult = await variantsResponse.json();
+    
+    if (variantsResult.errors) {
+      console.error('GraphQL errors:', variantsResult.errors);
+      throw new Error(`GraphQL errors: ${JSON.stringify(variantsResult.errors)}`);
+    }
+    
+    // Extract variant IDs
+    const variantIds = variantsResult.data?.product?.variants?.edges?.map(edge => edge.node.id) || [];
+    
+    if (variantIds.length === 0) {
+      throw new Error('No variants found for product');
+    }
+    
+    console.log(`Found ${variantIds.length} variants for product`);
+    
+    // Now assign variants to the delivery profile
+    const assignResponse = await fetch(graphqlEndpoint, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...authHeaders
+      },
+      body: JSON.stringify({
+        query: assignMutation,
+        variables: {
+          profileId,
+          productVariantIds: variantIds
+        }
+      })
+    });
+    
+    if (!assignResponse.ok) {
+      const errorText = await assignResponse.text();
+      console.error(`Failed to assign product to delivery profile: ${errorText}`);
+      throw new Error(`GraphQL API error: ${assignResponse.status}`);
+    }
+    
+    const assignResult = await assignResponse.json();
+    
+    if (assignResult.errors) {
+      console.error('GraphQL errors:', assignResult.errors);
+      throw new Error(`GraphQL errors: ${JSON.stringify(assignResult.errors)}`);
+    }
+    
+    if (assignResult.data?.deliveryProfileAssign?.userErrors?.length > 0) {
+      console.error('User errors:', assignResult.data.deliveryProfileAssign.userErrors);
+      throw new Error(`User errors: ${JSON.stringify(assignResult.data.deliveryProfileAssign.userErrors)}`);
+    }
+    
+    console.log('Successfully assigned product to delivery profile');
+    return {
+      success: true,
+      productId,
+      profileId,
+      variantIds
+    };
+  } catch (error) {
+    console.error('Error assigning product to delivery profile:', error);
     throw error;
   }
 }

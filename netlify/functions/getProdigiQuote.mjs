@@ -3,10 +3,13 @@ import fetch from 'node-fetch';
 
 // Mock data for testing (used when API key isn't available)
 const getMockPriceQuote = (countryCode, currencyCode) => {
+  // Fix country code (UK should be GB for proper ISO 3166-1 alpha-2 code)
+  if (countryCode === 'UK') countryCode = 'GB';
+  
   // Base price for a canvas in USD
   const basePrices = {
     'US': 25.00,
-    'UK': 20.00,
+    'GB': 20.00, // United Kingdom
     'CA': 28.00,
     'AU': 30.00,
     'DE': 22.00,
@@ -21,7 +24,7 @@ const getMockPriceQuote = (countryCode, currencyCode) => {
   // Shipping costs by country in USD
   const shippingPrices = {
     'US': 5.00,
-    'UK': 4.50,
+    'GB': 4.50, // United Kingdom
     'CA': 6.50,
     'AU': 12.00,
     'DE': 7.00,
@@ -32,10 +35,26 @@ const getMockPriceQuote = (countryCode, currencyCode) => {
     'SG': 14.00,
     'NL': 7.00
   };
+  
+  // Express shipping prices (higher than standard)
+  const expressShippingPrices = {
+    'US': 12.00,
+    'GB': 10.50, // United Kingdom
+    'CA': 14.50,
+    'AU': 24.00,
+    'DE': 18.00,
+    'FR': 18.00,
+    'ES': 19.00,
+    'IT': 19.00,
+    'JP': 30.00,
+    'SG': 28.00,
+    'NL': 18.00
+  };
 
   // Default to US pricing if country not found
   const basePrice = basePrices[countryCode] || basePrices['US'];
-  const shippingPrice = shippingPrices[countryCode] || shippingPrices['US'];
+  const standardShippingPrice = shippingPrices[countryCode] || shippingPrices['US'];
+  const expressShippingPrice = expressShippingPrices[countryCode] || expressShippingPrices['US'];
 
   // Default product
   const DEFAULT_PRODUCT = {
@@ -45,9 +64,11 @@ const getMockPriceQuote = (countryCode, currencyCode) => {
     assets: [{ printArea: "default" }]
   };
 
+  // Return response with multiple shipping options
   return {
     outcome: "Created",
     quotes: [
+      // Standard shipping option
       {
         shipmentMethod: "Budget",
         costSummary: {
@@ -56,7 +77,7 @@ const getMockPriceQuote = (countryCode, currencyCode) => {
             currency: currencyCode
           },
           shipping: {
-            amount: shippingPrice.toFixed(2),
+            amount: standardShippingPrice.toFixed(2),
             currency: currencyCode
           }
         },
@@ -71,15 +92,15 @@ const getMockPriceQuote = (countryCode, currencyCode) => {
               labCode: "us11"
             },
             cost: {
-              amount: shippingPrice.toFixed(2),
+              amount: standardShippingPrice.toFixed(2),
               currency: currencyCode
             },
-            items: ["mock_item_id"]
+            items: ["mock_item_id_1"]
           }
         ],
         items: [
           {
-            id: "mock_item_id",
+            id: "mock_item_id_1",
             sku: DEFAULT_PRODUCT.sku,
             copies: DEFAULT_PRODUCT.copies,
             unitCost: {
@@ -90,6 +111,67 @@ const getMockPriceQuote = (countryCode, currencyCode) => {
             assets: DEFAULT_PRODUCT.assets
           }
         ]
+      },
+      // Express shipping option
+      {
+        shipmentMethod: "Express",
+        costSummary: {
+          items: {
+            amount: basePrice.toFixed(2),
+            currency: currencyCode
+          },
+          shipping: {
+            amount: expressShippingPrice.toFixed(2),
+            currency: currencyCode
+          }
+        },
+        shipments: [
+          {
+            carrier: {
+              name: "DHL",
+              service: "Express"
+            },
+            fulfillmentLocation: {
+              countryCode: "US",
+              labCode: "us11"
+            },
+            cost: {
+              amount: expressShippingPrice.toFixed(2),
+              currency: currencyCode
+            },
+            items: ["mock_item_id_2"]
+          }
+        ],
+        items: [
+          {
+            id: "mock_item_id_2",
+            sku: DEFAULT_PRODUCT.sku,
+            copies: DEFAULT_PRODUCT.copies,
+            unitCost: {
+              amount: basePrice.toFixed(2),
+              currency: currencyCode
+            },
+            attributes: DEFAULT_PRODUCT.attributes,
+            assets: DEFAULT_PRODUCT.assets
+          }
+        ]
+      }
+    ],
+    // Add the formatted shipping rates for easier consumption
+    formattedShippingRates: [
+      {
+        name: "Prodigi Budget Shipping",
+        price: standardShippingPrice.toFixed(2),
+        method: "Budget",
+        currency: currencyCode,
+        productCost: basePrice.toFixed(2)
+      },
+      {
+        name: "Prodigi Express Shipping",
+        price: expressShippingPrice.toFixed(2),
+        method: "Express",
+        currency: currencyCode,
+        productCost: basePrice.toFixed(2)
       }
     ]
   };
@@ -134,15 +216,20 @@ export const handler = async (event, context) => {
     // Get API key from environment variables - check both possible names
     const apiKey = process.env.REACT_APP_PRODIGI_API_KEY || process.env.PRODIGI_API_KEY;
 
-    // If no API key, return an error
+    // If no API key, use mock data
     if (!apiKey) {
-      console.log('No Prodigi API key found in environment variables');
+      console.log('No Prodigi API key found in environment variables, using mock data');
+      
+      // Generate mock quote
+      const mockData = getMockPriceQuote(countryCode, currencyCode);
+      
       return {
-        statusCode: 400,
+        statusCode: 200,
         headers,
-        body: JSON.stringify({ 
-          error: true, 
-          message: 'Prodigi API key not configured. Please set the REACT_APP_PRODIGI_API_KEY environment variable.' 
+        body: JSON.stringify({
+          ...mockData,
+          mock: true,
+          warning: 'Using mock data - Prodigi API key not configured'
         })
       };
     }
@@ -203,10 +290,46 @@ export const handler = async (event, context) => {
     const data = await response.json();
     console.log('Prodigi API response:', JSON.stringify(data, null, 2));
     
+    // Extract and format shipping rates for easier consumption by the createShopifyProduct function
+    let formattedShippingRates = [];
+    
+    if (data.quotes && data.quotes.length > 0) {
+      formattedShippingRates = data.quotes.map(quote => {
+        // Extract shipping method name
+        const methodName = quote.shipmentMethod || "Standard";
+        
+        // Extract shipping cost amount
+        let shippingCost = "0.00";
+        if (quote.costSummary && quote.costSummary.shipping && quote.costSummary.shipping.amount) {
+          shippingCost = quote.costSummary.shipping.amount;
+        }
+        
+        // Extract product cost
+        let productCost = "0.00";
+        if (quote.costSummary && quote.costSummary.items && quote.costSummary.items.amount) {
+          productCost = quote.costSummary.items.amount;
+        }
+        
+        // Get the currency 
+        const currency = quote.costSummary?.shipping?.currency || "USD";
+        
+        return {
+          name: `Prodigi ${methodName} Shipping`,
+          price: shippingCost,
+          method: methodName,
+          currency: currency,
+          productCost: productCost
+        };
+      });
+    }
+    
     return {
       statusCode: 200,
       headers,
-      body: JSON.stringify(data)
+      body: JSON.stringify({
+        ...data,
+        formattedShippingRates
+      })
     };
   } catch (error) {
     console.error('Error fetching Prodigi quote:', error);
