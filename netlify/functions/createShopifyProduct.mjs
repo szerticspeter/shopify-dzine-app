@@ -165,12 +165,25 @@ export async function handler(event, context) {
     let productPrice = price;
     let shippingCost = null;
     
-    if (typeof price === 'object' && price.product && price.shipping) {
+    if (typeof price === 'object' && price.product) {
       // Calculate product price with 30% markup on the Prodigi base price
       const prodigiPrice = parseFloat(price.product);
-      productPrice = (prodigiPrice * 1.3).toFixed(2); // 30% markup
-      shippingCost = parseFloat(price.shipping);
-      console.log(`Using detailed pricing - Prodigi base: ${prodigiPrice}, With markup: ${productPrice}, Shipping: ${shippingCost}`);
+      if (isNaN(prodigiPrice) || prodigiPrice <= 0) {
+        console.warn(`Invalid Prodigi price: ${price.product}, using fallback price of 25.00`);
+        productPrice = "25.00";
+      } else {
+        productPrice = (prodigiPrice * 1.3).toFixed(2); // 30% markup
+      }
+      
+      if (price.shipping) {
+        shippingCost = parseFloat(price.shipping);
+        if (isNaN(shippingCost)) {
+          console.warn(`Invalid shipping cost: ${price.shipping}, using fallback of 5.00`);
+          shippingCost = 5.00;
+        }
+      }
+      
+      console.log(`Using detailed pricing - Prodigi base: ${prodigiPrice}, With markup: ${productPrice}, Shipping: ${shippingCost || 'none'}`);
     }
     
     const productData = {
@@ -225,7 +238,7 @@ export async function handler(event, context) {
       try {
         // Initialize variables to track delivery profile operations
         let deliveryProfileId = null;
-        let deliveryProfileResult = null;
+        let deliveryProfileResult = { success: false, attempted: false };
         
         // Step 2a: Create or update delivery profile with shipping rates if provided
         if (shippingRates && shippingCountry) {
@@ -273,8 +286,9 @@ export async function handler(event, context) {
               name: shippingError.name
             }));
             
-            // Set a default result to avoid undefined variable
+            // Update result with error details to avoid undefined variable
             deliveryProfileResult = {
+              ...deliveryProfileResult,
               error: true,
               errorMessage: shippingError.message,
               profileId: null,

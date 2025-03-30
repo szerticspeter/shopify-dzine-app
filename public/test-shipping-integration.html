@@ -214,6 +214,49 @@
         const data = await response.json();
         currentQuote = data;
         
+        // Log the full response for debugging
+        console.log('Shipping quote response:', data);
+        
+        // Validate the response
+        if (data.error) {
+          console.error('Error in shipping quote:', data.error, data.details);
+          throw new Error(`Shipping quote error: ${data.message || data.error}`);
+        }
+        
+        // Make sure we have shipping rates
+        if (!data.formattedShippingRates || data.formattedShippingRates.length === 0) {
+          console.warn('No formatted shipping rates found in response');
+          
+          // Try to extract rates from the raw response
+          if (data.quotes && data.quotes.length > 0) {
+            console.log('Attempting to extract shipping rates from raw quotes');
+            const extractedRates = [];
+            
+            data.quotes.forEach((quote, index) => {
+              if (quote.costSummary) {
+                const productCost = quote.costSummary.items?.amount || "0.00";
+                const shippingCost = quote.costSummary.shipping?.amount || "0.00";
+                const currency = quote.costSummary.shipping?.currency || "USD";
+                const methodName = quote.shipmentMethod || `Shipping Option ${index + 1}`;
+                
+                extractedRates.push({
+                  name: `Prodigi ${methodName} Shipping`,
+                  price: shippingCost,
+                  method: methodName,
+                  currency: currency,
+                  productCost: productCost
+                });
+              }
+            });
+            
+            if (extractedRates.length > 0) {
+              console.log('Successfully extracted rates:', extractedRates);
+              data.formattedShippingRates = extractedRates;
+              currentQuote = data;
+            }
+          }
+        }
+        
         // Display the results
         quoteData.textContent = JSON.stringify(data, null, 2);
         quoteResults.classList.remove('hidden');
@@ -326,6 +369,31 @@
         
         // Parse the response
         const data = await response.json();
+        
+        // Log the full response for debugging
+        console.log('Product creation response:', data);
+        
+        // Check for specific error patterns
+        if (data.error) {
+          console.error('Server reported error:', data.error);
+          throw new Error(`Server error: ${data.error}`);
+        }
+        
+        // Validate the product data
+        if (!data.product || !data.product.id) {
+          console.error('Invalid product data returned:', data);
+          throw new Error('No valid product data in response');
+        }
+        
+        // Check if the product price is correct
+        if (data.product.variants && data.product.variants.length > 0) {
+          const price = parseFloat(data.product.variants[0].price);
+          if (isNaN(price) || price <= 1) {
+            console.warn('Product price looks incorrect:', price);
+          } else {
+            console.log('Product created with price:', price);
+          }
+        }
         
         // Display the results
         productData.textContent = JSON.stringify(data, null, 2);
