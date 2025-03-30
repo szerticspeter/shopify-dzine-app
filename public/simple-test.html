@@ -1,0 +1,290 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Simple Shopify Shipping Test</title>
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+      line-height: 1.6;
+      max-width: 900px;
+      margin: 0 auto;
+      padding: 20px;
+      color: #333;
+    }
+    h1, h2, h3 {
+      color: #2c6ecb;
+    }
+    button {
+      background-color: #2c6ecb;
+      color: white;
+      border: none;
+      padding: 10px 15px;
+      margin: 10px 0;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 16px;
+    }
+    button:hover {
+      background-color: #1a5bb8;
+    }
+    input, select {
+      padding: 8px;
+      margin: 5px 0;
+      border: 1px solid #ddd;
+      border-radius: 4px;
+      width: 100%;
+      box-sizing: border-box;
+    }
+    .field-group {
+      margin-bottom: 15px;
+    }
+    label {
+      display: block;
+      font-weight: bold;
+    }
+    .loading {
+      display: inline-block;
+      width: 20px;
+      height: 20px;
+      border: 3px solid rgba(0, 0, 0, 0.1);
+      border-radius: 50%;
+      border-top-color: #2c6ecb;
+      animation: spin 1s ease-in-out infinite;
+      margin-left: 10px;
+    }
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+    .result-container {
+      margin-top: 20px;
+      padding: 15px;
+      background-color: #f9f9f9;
+      border-radius: 5px;
+      border-left: 4px solid #2c6ecb;
+    }
+    pre {
+      white-space: pre-wrap;
+      word-wrap: break-word;
+      background-color: #f5f5f5;
+      padding: 10px;
+      border-radius: 4px;
+      overflow-x: auto;
+    }
+    .hidden {
+      display: none;
+    }
+    .shipping-rate {
+      background-color: #f0f7ff;
+      padding: 10px;
+      margin: 5px 0;
+      border-radius: 4px;
+      border: 1px solid #d0e4ff;
+    }
+    .warning {
+      background-color: #fff3cd;
+      border-left: 4px solid #ffc107;
+      padding: 15px;
+      margin: 10px 0;
+      border-radius: 5px;
+    }
+    .success {
+      background-color: #d4edda;
+      border-left: 4px solid #28a745;
+      padding: 15px;
+      margin: 10px 0;
+      border-radius: 5px;
+    }
+  </style>
+</head>
+<body>
+  <h1>Simple Shopify Shipping Test</h1>
+  <p>This page tests the simplified product creation with flat rate shipping implementation.</p>
+
+  <div class="field-group">
+    <label for="product-title">Product Title</label>
+    <input type="text" id="product-title" value="Simple Test Product">
+  </div>
+
+  <div class="field-group">
+    <label for="product-price">Product Price (USD)</label>
+    <input type="number" id="product-price" value="25.00" step="0.01">
+  </div>
+
+  <div class="field-group">
+    <label for="shipping-country">Shipping Country</label>
+    <select id="shipping-country">
+      <option value="US">United States</option>
+      <option value="CA">Canada</option>
+      <option value="GB">United Kingdom</option>
+      <option value="AU">Australia</option>
+      <option value="DE">Germany</option>
+      <option value="FR">France</option>
+    </select>
+  </div>
+
+  <div id="shipping-rates-container">
+    <h3>Shipping Rates</h3>
+    <div class="shipping-rate" id="rate-template">
+      <div class="field-group">
+        <label>Name</label>
+        <input type="text" class="rate-name" value="Standard Shipping">
+      </div>
+      <div class="field-group">
+        <label>Price (USD)</label>
+        <input type="number" class="rate-price" value="5.00" step="0.01">
+      </div>
+    </div>
+    <button id="add-rate-btn">Add Another Rate</button>
+  </div>
+
+  <button id="create-btn">Create Product with Shipping</button>
+  <span id="loader" class="loading hidden"></span>
+
+  <div id="result-container" class="result-container hidden">
+    <h2>Result</h2>
+    <pre id="result-output"></pre>
+    <div id="product-link-container" class="hidden success">
+      <h3>Product Created!</h3>
+      <p>View your product: <a id="product-link" href="#" target="_blank">Open in Shopify</a></p>
+    </div>
+  </div>
+
+  <script>
+    // DOM Elements
+    const productTitleInput = document.getElementById('product-title');
+    const productPriceInput = document.getElementById('product-price');
+    const shippingCountrySelect = document.getElementById('shipping-country');
+    const shippingRatesContainer = document.getElementById('shipping-rates-container');
+    const rateTemplate = document.getElementById('rate-template');
+    const addRateBtn = document.getElementById('add-rate-btn');
+    const createBtn = document.getElementById('create-btn');
+    const loader = document.getElementById('loader');
+    const resultContainer = document.getElementById('result-container');
+    const resultOutput = document.getElementById('result-output');
+    const productLinkContainer = document.getElementById('product-link-container');
+    const productLink = document.getElementById('product-link');
+
+    // API endpoint
+    const API_ENDPOINT = '/.netlify/functions/simple-product-shipping';
+
+    // Initialize
+    let rateCount = 1;
+
+    // Add rate button click handler
+    addRateBtn.addEventListener('click', () => {
+      const newRate = rateTemplate.cloneNode(true);
+      newRate.id = `rate-${++rateCount}`;
+      
+      // Reset values
+      newRate.querySelector('.rate-name').value = `Shipping Option ${rateCount}`;
+      
+      // Insert before the button
+      shippingRatesContainer.insertBefore(newRate, addRateBtn);
+    });
+
+    // Create product button click handler
+    createBtn.addEventListener('click', async () => {
+      // Collect form data
+      const title = productTitleInput.value.trim();
+      const price = parseFloat(productPriceInput.value);
+      const country = shippingCountrySelect.value;
+      
+      // Validate inputs
+      if (!title) {
+        alert('Please enter a product title');
+        return;
+      }
+      
+      if (isNaN(price) || price <= 0) {
+        alert('Please enter a valid price');
+        return;
+      }
+      
+      // Collect shipping rates
+      const rates = [];
+      const rateElements = shippingRatesContainer.querySelectorAll('.shipping-rate');
+      
+      rateElements.forEach(element => {
+        const nameInput = element.querySelector('.rate-name');
+        const priceInput = element.querySelector('.rate-price');
+        
+        if (nameInput && priceInput) {
+          const name = nameInput.value.trim();
+          const price = parseFloat(priceInput.value);
+          
+          if (name && !isNaN(price) && price >= 0) {
+            rates.push({
+              name,
+              price: price.toFixed(2)
+            });
+          }
+        }
+      });
+      
+      // Show loader
+      loader.classList.remove('hidden');
+      createBtn.disabled = true;
+      
+      try {
+        // Prepare request data
+        const data = {
+          title,
+          description: `Test product with shipping rates to ${country}`,
+          price: price.toFixed(2),
+          imageUrl: 'https://picsum.photos/id/26/800/600', // Random placeholder image
+          shippingCountry: country,
+          shippingRates: rates
+        };
+        
+        console.log('Sending request:', data);
+        
+        // Send request
+        const response = await fetch(API_ENDPOINT, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify(data)
+        });
+        
+        // Always get raw response text first
+        const responseText = await response.text();
+        console.log('Raw response:', responseText);
+        
+        let responseData;
+        try {
+          responseData = JSON.parse(responseText);
+        } catch (e) {
+          throw new Error(`Invalid JSON response: ${responseText.substring(0, 100)}...`);
+        }
+        
+        // Display result
+        resultOutput.textContent = JSON.stringify(responseData, null, 2);
+        resultContainer.classList.remove('hidden');
+        
+        // If successful, show product link
+        if (responseData.success && responseData.product && responseData.product.handle) {
+          const shopDomain = window.location.hostname.includes('localhost') || window.location.hostname.includes('--')
+            ? (window.location.hostname.includes('--') 
+               ? window.location.hostname.split('--')[1]
+               : 'your-store.myshopify.com')
+            : window.location.hostname;
+            
+          productLink.href = `https://${shopDomain}/products/${responseData.product.handle}`;
+          productLinkContainer.classList.remove('hidden');
+        }
+      } catch (error) {
+        console.error('Error:', error);
+        resultOutput.textContent = `Error: ${error.message}`;
+        resultContainer.classList.remove('hidden');
+      } finally {
+        // Hide loader and re-enable button
+        loader.classList.add('hidden');
+        createBtn.disabled = false;
+      }
+    });
+  </script>
+</body>
+</html>
