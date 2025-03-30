@@ -893,97 +893,146 @@ async function createOrUpdateDeliveryProfile(shopDomain, accessToken, countryCod
         rateDefinitions
       };
       
-      // Switch to using the REST API instead of GraphQL for shipping profiles
-      console.log("Using REST API for creating shipping profile with flat rates");
+      // Use GraphQL for creating delivery profiles with flat rates
+      console.log("Using GraphQL API for creating delivery profile with flat rates");
       
-      // Build a shipping profile using the REST API which supports flat rates better
-      const shippingZoneInput = {
-        shipping_zone: {
-          name: profileName,
-          countries: [{
-            code: countryCode
-          }],
-          // Add flat rate shipping rates based on the Prodigi rates
-          price_based_shipping_rates: rateDefinitions.map(rate => {
-            // Extract the price value properly
-            let priceValue;
-            if (typeof rate.price === 'object' && rate.price.amount) {
-              priceValue = parseFloat(rate.price.amount);
-            } else if (typeof rate.price === 'string') {
-              priceValue = parseFloat(rate.price);
-            } else if (typeof rate.price === 'number') {
-              priceValue = rate.price;
-            } else {
-              priceValue = 10.00; // Default fallback
+      // Create the profile - GraphQL mutation for flat rate shipping
+      const createProfileMutation = `
+        mutation deliveryProfileCreate($profile: DeliveryProfileInput!) {
+          deliveryProfileCreate(profile: $profile) {
+            profile {
+              id
+              name
             }
-            
-            return {
-              name: rate.name,
-              price: priceValue.toFixed(2),
-              min_order_subtotal: "0.00"
-            };
-          })
+            userErrors {
+              field
+              message
+            }
+          }
         }
+      `;
+      
+      // Build delivery profile with MANUAL rate providers (flat rates)
+      const profileInput = {
+        name: profileName,
+        profileType: "CUSTOM", // Use CUSTOM type for flat rates
+        zoneCountrySelection: {
+          restOfWorld: false,
+          countries: [{ code: countryCode }]
+        },
+        // Create flat rate methods
+        deliveryMethodDefinitions: rateDefinitions.map(rate => {
+          // Extract the price value properly
+          let priceValue;
+          if (typeof rate.price === 'object' && rate.price.amount) {
+            priceValue = parseFloat(rate.price.amount);
+          } else if (typeof rate.price === 'string') {
+            priceValue = parseFloat(rate.price);
+          } else if (typeof rate.price === 'number') {
+            priceValue = rate.price;
+          } else {
+            priceValue = 10.00; // Default fallback
+          }
+          
+          // Manual shipping rate for flat rate shipping
+          return {
+            name: rate.name,
+            methodType: "MANUAL", // MANUAL instead of SHIPPING for flat rates
+            rateProvider: {
+              flat: {
+                price: { amount: priceValue.toFixed(2) }
+              }
+            }
+          };
+        })
       };
       
-      console.log("Creating shipping zone with flat rates:", JSON.stringify(shippingZoneInput));
+      console.log("Creating delivery profile with flat rates:", JSON.stringify(profileInput));
       
-      // Prepare the REST API URL for shipping zones
-      const restApiUrl = `https://${shopDomain}/admin/api/${apiVersion}/shipping_zones.json`;
-      
-      const createResponse = await fetch(restApiUrl, {
+      const createResponse = await fetch(graphqlEndpoint, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           ...authHeaders
         },
-        body: JSON.stringify(shippingZoneInput)
+        body: JSON.stringify({
+          query: createProfileMutation,
+          variables: { profile: profileInput }
+        })
       });
       
       if (!createResponse.ok) {
         const errorText = await createResponse.text();
-        console.error(`Failed to create shipping zone with flat rates: ${errorText}`);
+        console.error(`Failed to create delivery profile with flat rates: ${errorText}`);
         
         // Try to parse the error for more details
         try {
           const errorData = JSON.parse(errorText);
           console.error('Parsed error details:', JSON.stringify(errorData));
           
-          // Check for specific error types
-          if (errorText.includes('already exists') || errorText.toLowerCase().includes('duplicate')) {
-            console.log('Shipping zone already exists, will use existing zone');
-            // We can proceed - the product will use the existing shipping zone
+          // Check for common permission issues
+          if (errorText.includes("access") || errorText.includes("permission") || 
+              errorText.includes("authorize") || errorText.includes("scope")) {
+            console.error("This appears to be a permissions issue. Check your app's API access scopes.");
+            
+            // Return a more graceful fallback instead of failing
             return {
-              success: true,
-              profileId: "existing",
-              profileName,
-              countryCode,
-              message: "Using existing shipping zone"
+              success: false,
+              error: true,
+              profileId: null,
+              errorMessage: "Permission denied for delivery profiles. Check API access scopes.",
+              countryCode
             };
           }
         } catch (e) {
           // Parsing failed, just use the raw text
         }
         
-        throw new Error(`REST API error: ${createResponse.status} - ${errorText.substring(0, 200)}`);
+        throw new Error(`GraphQL API error: ${createResponse.status} - ${errorText.substring(0, 200)}`);
       }
       
       const createResult = await createResponse.json();
-      console.log('Shipping zone creation successful:', JSON.stringify(createResult));
+      console.log('Delivery profile creation response:', JSON.stringify(createResult));
       
-      // Get the created shipping zone ID
-      profileId = createResult.shipping_zone?.id;
-      profileResult = createResult.shipping_zone;
+      // Check for GraphQL errors
+      if (createResult.errors) {
+        console.error('GraphQL errors:', createResult.errors);
+        
+        // Check for duplicate/already exists errors
+        const errorString = JSON.stringify(createResult.errors);
+        if (errorString.includes('already exists') || errorString.includes('duplicate')) {
+          console.log('Delivery profile already exists, will use existing profile');
+          return {
+            success: true,
+            profileId: "existing",
+            profileName,
+            countryCode,
+            message: "Using existing delivery profile"
+          };
+        }
+        
+        throw new Error(`GraphQL errors: ${JSON.stringify(createResult.errors)}`);
+      }
+      
+      // Check for user errors
+      if (createResult.data?.deliveryProfileCreate?.userErrors?.length > 0) {
+        console.error('User errors:', createResult.data.deliveryProfileCreate.userErrors);
+        throw new Error(`User errors: ${JSON.stringify(createResult.data.deliveryProfileCreate.userErrors)}`);
+      }
+      
+      // Get the created profile ID
+      profileId = createResult.data?.deliveryProfileCreate?.profile?.id;
+      profileResult = createResult.data?.deliveryProfileCreate?.profile;
       
       console.log(`Successfully created shipping zone with ID: ${profileId}`);
       
       console.log(`Created new delivery profile with ID: ${profileId}`);
     } else {
-      // Update existing shipping zone
-      console.log(`Updating existing shipping zone with ID: ${profileId}`);
+      // Update existing delivery profile
+      console.log(`Updating existing delivery profile with ID: ${profileId}`);
       
-      // Prepare the shipping rates for update
-      const updatedRates = rates.map(rate => {
+      // Prepare updated rate definitions for the profile
+      const updatedRateDefinitions = rates.map(rate => {
         // Log the rate object for debugging
         console.log('Processing rate for update:', JSON.stringify(rate));
         
@@ -999,40 +1048,65 @@ async function createOrUpdateDeliveryProfile(shopDomain, accessToken, countryCod
           priceValue = 10.00; // Default fallback
         }
         
+        // Manual shipping rate for flat rate shipping
         return {
           name: rate.name,
-          price: priceValue.toFixed(2),
-          min_order_subtotal: "0.00"
+          methodType: "MANUAL", // MANUAL instead of SHIPPING for flat rates
+          rateProvider: {
+            flat: {
+              price: { amount: priceValue.toFixed(2) }
+            }
+          }
         };
       });
       
-      // Build the shipping zone update payload
-      const shippingZoneUpdate = {
-        shipping_zone: {
-          countries: [{
-            code: countryCode
-          }],
-          price_based_shipping_rates: updatedRates
+      // Update mutation for delivery profile
+      const updateProfileMutation = `
+        mutation deliveryProfileUpdate($id: ID!, $profile: DeliveryProfileInput!) {
+          deliveryProfileUpdate(id: $id, profile: $profile) {
+            profile {
+              id
+              name
+            }
+            userErrors {
+              field
+              message
+            }
+          }
         }
+      `;
+      
+      // Build the profile update payload
+      const updateProfileInput = {
+        name: profileName,
+        profileType: "CUSTOM", // Use CUSTOM type for flat rates
+        zoneCountrySelection: {
+          restOfWorld: false,
+          countries: [{ code: countryCode }]
+        },
+        deliveryMethodDefinitions: updatedRateDefinitions
       };
       
-      console.log(`Updating shipping zone with ID ${profileId}:`, JSON.stringify(shippingZoneUpdate));
+      console.log(`Updating delivery profile with ID ${profileId}:`, JSON.stringify(updateProfileInput));
       
-      // Use PUT for updating an existing shipping zone
-      const updateUrl = `https://${shopDomain}/admin/api/${apiVersion}/shipping_zones/${profileId}.json`;
-      
-      const updateResponse = await fetch(updateUrl, {
-        method: 'PUT',
+      const updateResponse = await fetch(graphqlEndpoint, {
+        method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           ...authHeaders
         },
-        body: JSON.stringify(shippingZoneUpdate)
+        body: JSON.stringify({
+          query: updateProfileMutation,
+          variables: {
+            id: profileId,
+            profile: updateProfileInput
+          }
+        })
       });
       
       if (!updateResponse.ok) {
         const errorText = await updateResponse.text();
-        console.error(`Failed to update shipping zone: ${errorText}`);
+        console.error(`Failed to update delivery profile: ${errorText}`);
         
         // Try to parse the error for more details
         try {
@@ -1042,22 +1116,42 @@ async function createOrUpdateDeliveryProfile(shopDomain, accessToken, countryCod
           // Parsing failed, just use the raw text
         }
         
-        // Continue anyway - we can still use the existing shipping zone
-        console.log('Will continue with existing shipping zone configuration');
+        // Continue anyway - we can still use the existing profile
+        console.log('Will continue with existing delivery profile configuration');
         profileResult = {
           id: profileId,
           name: profileName,
-          updated: false,
-          countries: [{ code: countryCode }]
+          updated: false
         };
       } else {
         const updateResult = await updateResponse.json();
-        console.log('Shipping zone update successful:', JSON.stringify(updateResult));
+        console.log('Delivery profile update response:', JSON.stringify(updateResult));
         
-        profileResult = updateResult.shipping_zone;
+        // Check for GraphQL errors or user errors
+        if (updateResult.errors) {
+          console.error('GraphQL errors in update:', updateResult.errors);
+          // Continue anyway with existing profile
+          profileResult = {
+            id: profileId,
+            name: profileName,
+            updated: false,
+            errors: updateResult.errors
+          };
+        } else if (updateResult.data?.deliveryProfileUpdate?.userErrors?.length > 0) {
+          console.error('User errors in update:', updateResult.data.deliveryProfileUpdate.userErrors);
+          // Continue anyway with existing profile
+          profileResult = {
+            id: profileId,
+            name: profileName,
+            updated: false,
+            userErrors: updateResult.data.deliveryProfileUpdate.userErrors
+          };
+        } else {
+          profileResult = updateResult.data?.deliveryProfileUpdate?.profile;
+        }
       }
       
-      console.log(`Using shipping zone with ID: ${profileId}`);
+      console.log(`Using delivery profile with ID: ${profileId}`);
       console.log(`Updated delivery profile with ID: ${profileId}`);
     }
     
@@ -1077,18 +1171,12 @@ async function createOrUpdateDeliveryProfile(shopDomain, accessToken, countryCod
 }
 
 /**
- * Assign a product to a specific shipping zone for flat rate shipping
- * Uses the Shopify REST Admin API
+ * Assign a product to a specific delivery profile
+ * Uses the Shopify GraphQL Admin API
  */
 async function assignProductToDeliveryProfile(shopDomain, accessToken, productId, profileId, apiVersion) {
   try {
-    console.log(`Assigning product ${productId} to shipping zone ${profileId}`);
-    
-    // With flat rate shipping profiles, we actually don't need to explicitly assign products
-    // The shipping rates apply to all products by default, based on the destination country
-    
-    // For better user experience, we can add shipping info to the product's metafields
-    // to make it clear which shipping zone is being used
+    console.log(`Assigning product ${productId} to delivery profile ${profileId}`);
     
     // Ensure valid API version
     apiVersion = apiVersion || '2023-07';
@@ -1117,70 +1205,234 @@ async function assignProductToDeliveryProfile(shopDomain, accessToken, productId
       throw new Error('No valid authentication method available for product assignment');
     }
     
-    // Add a metafield to the product to note which shipping zone it uses
-    const shippingMetafield = {
-      metafield: {
-        namespace: "shipping",
-        key: "zone_id",
-        value: String(profileId),
-        type: "single_line_text_field"
+    // Convert REST API product ID to GraphQL-compatible ID if needed
+    // If the productId is numeric, convert to GraphQL ID format
+    let graphqlProductId = productId;
+    
+    if (!String(productId).includes('gid://')) {
+      graphqlProductId = `gid://shopify/Product/${productId}`;
+      console.log(`Converted REST product ID to GraphQL ID: ${graphqlProductId}`);
+    }
+    
+    // First, add a metafield to track the delivery profile using GraphQL
+    const addMetafieldMutation = `
+      mutation productUpdate($input: ProductInput!) {
+        productUpdate(input: $input) {
+          product {
+            id
+            metafields(first: 5) {
+              edges {
+                node {
+                  id
+                  namespace
+                  key
+                  value
+                }
+              }
+            }
+          }
+          userErrors {
+            field
+            message
+          }
+        }
       }
+    `;
+    
+    const metafieldInput = {
+      id: graphqlProductId,
+      metafields: [
+        {
+          namespace: "shipping",
+          key: "profile_id",
+          value: String(profileId),
+          type: "single_line_text_field"
+        }
+      ]
     };
     
-    // Set the metafield via REST API
-    const metafieldUrl = `https://${shopDomain}/admin/api/${apiVersion}/products/${productId}/metafields.json`;
+    // Set up the GraphQL endpoint
+    const graphqlEndpoint = `https://${shopDomain}/admin/api/${apiVersion}/graphql.json`;
     
+    // Add the metafield via GraphQL
     try {
-      const metafieldResponse = await fetch(metafieldUrl, {
+      const metafieldResponse = await fetch(graphqlEndpoint, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           ...authHeaders
         },
-        body: JSON.stringify(shippingMetafield)
+        body: JSON.stringify({
+          query: addMetafieldMutation,
+          variables: { input: metafieldInput }
+        })
       });
       
       if (!metafieldResponse.ok) {
-        console.warn(`Could not add shipping zone metafield: ${await metafieldResponse.text()}`);
-        // This is non-critical, so continue anyway
+        console.warn(`Could not add metafield via GraphQL: ${await metafieldResponse.text()}`);
       } else {
         const metafieldResult = await metafieldResponse.json();
-        console.log('Added shipping zone metafield to product:', JSON.stringify(metafieldResult));
+        if (metafieldResult.errors) {
+          console.warn('GraphQL errors adding metafield:', metafieldResult.errors);
+        } else if (metafieldResult.data?.productUpdate?.userErrors?.length > 0) {
+          console.warn('User errors adding metafield:', metafieldResult.data.productUpdate.userErrors);
+        } else {
+          console.log('Added delivery profile metafield to product');
+        }
       }
     } catch (metafieldError) {
-      console.warn('Error adding shipping metafield:', metafieldError);
+      console.warn('Error adding metafield:', metafieldError);
       // Non-critical, continue anyway
     }
     
-    // Get the product details to confirm assignment
-    const productUrl = `https://${shopDomain}/admin/api/${apiVersion}/products/${productId}.json`;
+    // Now assign the product to the delivery profile using GraphQL
+    const assignMutation = `
+      mutation deliveryProfileAssign($deliveryProfileId: ID!, $productVariantIds: [ID!]!) {
+        deliveryProfileAssign(deliveryProfileId: $deliveryProfileId, productVariantIds: $productVariantIds) {
+          userErrors {
+            field
+            message
+          }
+        }
+      }
+    `;
+    
+    // We need to get the variant IDs for this product first
+    const getVariantsQuery = `
+      query getProductVariants($productId: ID!) {
+        product(id: $productId) {
+          id
+          title
+          variants(first: 10) {
+            edges {
+              node {
+                id
+                title
+              }
+            }
+          }
+        }
+      }
+    `;
     
     try {
-      const productResponse = await fetch(productUrl, {
-        method: 'GET',
-        headers: authHeaders
+      // Get product variants
+      const variantsResponse = await fetch(graphqlEndpoint, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...authHeaders
+        },
+        body: JSON.stringify({
+          query: getVariantsQuery,
+          variables: { productId: graphqlProductId }
+        })
       });
       
-      if (productResponse.ok) {
-        const productData = await productResponse.json();
-        console.log(`Confirmed product details: ${productData.product.title} (ID: ${productId})`);
+      if (!variantsResponse.ok) {
+        throw new Error(`GraphQL API error: ${variantsResponse.status}`);
       }
-    } catch (productError) {
-      console.warn('Error getting product details:', productError);
-      // Non-critical, continue anyway
+      
+      const variantsResult = await variantsResponse.json();
+      
+      if (variantsResult.errors) {
+        console.error('GraphQL errors getting variants:', variantsResult.errors);
+        throw new Error(`GraphQL errors: ${JSON.stringify(variantsResult.errors)}`);
+      }
+      
+      // Extract variant IDs
+      const variantIds = variantsResult.data?.product?.variants?.edges?.map(edge => edge.node.id) || [];
+      
+      if (variantIds.length === 0) {
+        console.warn('No variants found for product, using alternative approach');
+        return {
+          success: true,
+          productId,
+          profileId,
+          note: "Product associated with delivery profile via metafield"
+        };
+      }
+      
+      console.log(`Found ${variantIds.length} variants for product, assigning to delivery profile`);
+      
+      // Now assign variants to the delivery profile
+      const assignResponse = await fetch(graphqlEndpoint, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...authHeaders
+        },
+        body: JSON.stringify({
+          query: assignMutation,
+          variables: {
+            deliveryProfileId: profileId,
+            productVariantIds: variantIds
+          }
+        })
+      });
+      
+      if (!assignResponse.ok) {
+        const errorText = await assignResponse.text();
+        console.error(`Failed to assign product to delivery profile: ${errorText}`);
+        // Continue anyway since we've added the metafield
+        return {
+          success: true,
+          productId,
+          profileId,
+          warning: "Added metafield but couldn't assign variants",
+          variantIds
+        };
+      }
+      
+      const assignResult = await assignResponse.json();
+      
+      if (assignResult.errors) {
+        console.error('GraphQL errors:', assignResult.errors);
+        // Continue anyway
+        return {
+          success: true,
+          productId,
+          profileId,
+          graphqlErrors: assignResult.errors,
+          variantIds
+        };
+      }
+      
+      if (assignResult.data?.deliveryProfileAssign?.userErrors?.length > 0) {
+        console.error('User errors:', assignResult.data.deliveryProfileAssign.userErrors);
+        // Continue anyway
+        return {
+          success: true,
+          productId,
+          profileId,
+          userErrors: assignResult.data.deliveryProfileAssign.userErrors,
+          variantIds
+        };
+      }
+      
+      console.log('Successfully assigned product variants to delivery profile');
+    } catch (assignError) {
+      console.warn('Error assigning variants to delivery profile:', assignError);
+      // Continue anyway since we've added the metafield
+      return {
+        success: true,
+        productId,
+        profileId,
+        error: assignError.message,
+        note: "Added delivery profile metafield but couldn't assign variants"
+      };
     }
     
-    console.log('Successfully assigned product to shipping zone');
     return {
       success: true,
       productId,
       profileId,
-      note: "Product automatically uses shipping rates from the zone based on customer's shipping address"
+      note: "Product assigned to custom delivery profile with flat rates"
     };
   } catch (error) {
-    console.error('Error assigning product to shipping zone:', error);
+    console.error('Error assigning product to delivery profile:', error);
     // Throw a more user-friendly error
-    throw new Error(`Could not assign product to shipping zone: ${error.message}`);
+    throw new Error(`Could not assign product to delivery profile: ${error.message}`);
   }
 }
 
