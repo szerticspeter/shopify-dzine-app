@@ -1,0 +1,293 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Shopify App Debug</title>
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen,
+        Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+      line-height: 1.6;
+      color: #333;
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 20px;
+    }
+    h1, h2, h3 {
+      margin-top: 30px;
+      color: #2c6ecb;
+    }
+    pre {
+      background-color: #f5f5f5;
+      padding: 15px;
+      border-radius: 4px;
+      overflow-x: auto;
+      white-space: pre-wrap;
+    }
+    button {
+      background-color: #2c6ecb;
+      color: white;
+      border: none;
+      padding: 10px 15px;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 16px;
+      margin: 10px 0;
+    }
+    button:hover {
+      background-color: #1a5bb8;
+    }
+    .section {
+      margin-bottom: 40px;
+      background-color: #f9f9f9;
+      padding: 20px;
+      border-radius: 8px;
+      border-left: 4px solid #2c6ecb;
+    }
+    .loading {
+      display: inline-block;
+      width: 20px;
+      height: 20px;
+      border: 3px solid rgba(0, 0, 0, 0.1);
+      border-radius: 50%;
+      border-top-color: #2c6ecb;
+      animation: spin 1s ease-in-out infinite;
+      margin-left: 10px;
+      vertical-align: middle;
+    }
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+    .hidden {
+      display: none;
+    }
+    .status-success {
+      color: green;
+      font-weight: bold;
+    }
+    .status-error {
+      color: red;
+      font-weight: bold;
+    }
+  </style>
+</head>
+<body>
+  <h1>Shopify App Debug Page</h1>
+  <p>This page helps diagnose issues with Shopify API connectivity and environment configuration.</p>
+  
+  <div class="section">
+    <h2>Environment and Configuration</h2>
+    <p>This section checks your Netlify environment variables and Shopify API connectivity.</p>
+    <button id="checkEnvBtn">Check Environment <span id="envLoader" class="loading hidden"></span></button>
+    <div id="envResults" class="hidden">
+      <h3>Environment Results:</h3>
+      <pre id="envData"></pre>
+    </div>
+  </div>
+  
+  <div class="section">
+    <h2>Create Test Product</h2>
+    <p>This section creates a simple test product to check if the Shopify API integration is working.</p>
+    <button id="createProductBtn">Create Test Product <span id="productLoader" class="loading hidden"></span></button>
+    <div id="productResults" class="hidden">
+      <h3>Product Creation Results:</h3>
+      <pre id="productData"></pre>
+    </div>
+  </div>
+  
+  <div class="section">
+    <h2>Get Prodigi Quote</h2>
+    <p>This section tests getting a shipping quote from Prodigi.</p>
+    <button id="getQuoteBtn">Get Prodigi Quote <span id="quoteLoader" class="loading hidden"></span></button>
+    <div id="quoteResults" class="hidden">
+      <h3>Prodigi Quote Results:</h3>
+      <pre id="quoteData"></pre>
+    </div>
+  </div>
+
+  <script>
+    // API endpoints
+    const DEBUG_CONFIG_API = '/.netlify/functions/debug-config';
+    const CREATE_PRODUCT_API = '/.netlify/functions/createShopifyProduct';
+    const PRODIGI_QUOTE_API = '/.netlify/functions/getProdigiQuote';
+    
+    // DOM elements
+    const checkEnvBtn = document.getElementById('checkEnvBtn');
+    const envLoader = document.getElementById('envLoader');
+    const envResults = document.getElementById('envResults');
+    const envData = document.getElementById('envData');
+    
+    const createProductBtn = document.getElementById('createProductBtn');
+    const productLoader = document.getElementById('productLoader');
+    const productResults = document.getElementById('productResults');
+    const productData = document.getElementById('productData');
+    
+    const getQuoteBtn = document.getElementById('getQuoteBtn');
+    const quoteLoader = document.getElementById('quoteLoader');
+    const quoteResults = document.getElementById('quoteResults');
+    const quoteData = document.getElementById('quoteData');
+    
+    // Check environment and configuration
+    checkEnvBtn.addEventListener('click', async () => {
+      // Clear previous results
+      envData.textContent = '';
+      envResults.classList.add('hidden');
+      
+      // Show loader
+      envLoader.classList.remove('hidden');
+      
+      try {
+        const response = await fetch(DEBUG_CONFIG_API);
+        const responseText = await response.text();
+        
+        try {
+          const data = JSON.parse(responseText);
+          console.log('Environment check response:', data);
+          
+          // Display the results
+          envData.textContent = JSON.stringify(data, null, 2);
+          envResults.classList.remove('hidden');
+          
+          // Check for critical issues
+          let hasShopifyConnection = false;
+          
+          if (data.shopify && data.shopify.graphqlApiStatus) {
+            if (data.shopify.graphqlApiStatus.includes('Connected successfully')) {
+              hasShopifyConnection = true;
+            }
+          }
+          
+          if (hasShopifyConnection) {
+            envData.insertAdjacentHTML('afterbegin', '<div class="status-success">✓ Shopify API connection successful</div>\n\n');
+          } else {
+            envData.insertAdjacentHTML('afterbegin', '<div class="status-error">✗ Shopify API connection failed!</div>\n\n');
+          }
+        } catch (parseError) {
+          console.error('Failed to parse response:', parseError);
+          envData.textContent = responseText;
+          envResults.classList.remove('hidden');
+        }
+      } catch (error) {
+        console.error('Error checking environment:', error);
+        envData.textContent = `Error: ${error.message}`;
+        envResults.classList.remove('hidden');
+      } finally {
+        // Hide loader
+        envLoader.classList.add('hidden');
+      }
+    });
+    
+    // Create test product
+    createProductBtn.addEventListener('click', async () => {
+      // Clear previous results
+      productData.textContent = '';
+      productResults.classList.add('hidden');
+      
+      // Show loader
+      productLoader.classList.remove('hidden');
+      
+      try {
+        // Create a simple test product
+        const testProduct = {
+          title: "Test Product " + new Date().toISOString(),
+          description: "This is a test product created to verify the Shopify API integration",
+          price: "9.99",
+          imageUrl: "https://picsum.photos/id/26/800/600" // Random placeholder image
+        };
+        
+        const response = await fetch(CREATE_PRODUCT_API, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify(testProduct)
+        });
+        
+        // Always get the raw response first
+        const responseText = await response.text();
+        console.log('Raw product creation response:', responseText);
+        
+        try {
+          const data = JSON.parse(responseText);
+          console.log('Parsed product creation response:', data);
+          
+          // Display the results
+          productData.textContent = JSON.stringify(data, null, 2);
+          productResults.classList.remove('hidden');
+          
+          if (data.error) {
+            productData.insertAdjacentHTML('afterbegin', `<div class="status-error">✗ Product creation failed: ${data.error}</div>\n\n`);
+          } else if (data.product && data.product.id) {
+            productData.insertAdjacentHTML('afterbegin', `<div class="status-success">✓ Product created successfully with ID: ${data.product.id}</div>\n\n`);
+          }
+        } catch (parseError) {
+          console.error('Failed to parse product response:', parseError);
+          productData.textContent = responseText;
+          productResults.classList.remove('hidden');
+        }
+      } catch (error) {
+        console.error('Error creating product:', error);
+        productData.textContent = `Error: ${error.message}`;
+        productResults.classList.remove('hidden');
+      } finally {
+        // Hide loader
+        productLoader.classList.add('hidden');
+      }
+    });
+    
+    // Get Prodigi Quote
+    getQuoteBtn.addEventListener('click', async () => {
+      // Clear previous results
+      quoteData.textContent = '';
+      quoteResults.classList.add('hidden');
+      
+      // Show loader
+      quoteLoader.classList.remove('hidden');
+      
+      try {
+        const response = await fetch(PRODIGI_QUOTE_API, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            countryCode: 'US',
+            currencyCode: 'USD'
+          })
+        });
+        
+        // Always get the raw response first
+        const responseText = await response.text();
+        console.log('Raw quote response:', responseText);
+        
+        try {
+          const data = JSON.parse(responseText);
+          console.log('Parsed quote response:', data);
+          
+          // Display the results
+          quoteData.textContent = JSON.stringify(data, null, 2);
+          quoteResults.classList.remove('hidden');
+          
+          if (data.error) {
+            quoteData.insertAdjacentHTML('afterbegin', `<div class="status-error">✗ Quote retrieval failed: ${data.error}</div>\n\n`);
+          } else if (data.quotes && data.quotes.length > 0) {
+            quoteData.insertAdjacentHTML('afterbegin', `<div class="status-success">✓ Quote retrieved successfully with ${data.quotes.length} shipping options</div>\n\n`);
+          }
+        } catch (parseError) {
+          console.error('Failed to parse quote response:', parseError);
+          quoteData.textContent = responseText;
+          quoteResults.classList.remove('hidden');
+        }
+      } catch (error) {
+        console.error('Error getting quote:', error);
+        quoteData.textContent = `Error: ${error.message}`;
+        quoteResults.classList.remove('hidden');
+      } finally {
+        // Hide loader
+        quoteLoader.classList.add('hidden');
+      }
+    });
+  </script>
+</body>
+</html>

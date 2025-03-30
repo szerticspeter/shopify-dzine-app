@@ -363,12 +363,25 @@
           body: JSON.stringify(requestData)
         });
         
-        if (!response.ok) {
-          throw new Error(`API responded with status ${response.status}`);
+        // Always get the raw response text first, so we have it for debugging
+        const responseText = await response.text();
+        console.log('Raw response:', responseText);
+        
+        // Try to parse as JSON
+        let data;
+        try {
+          data = JSON.parse(responseText);
+          console.log('Parsed response:', data);
+        } catch (parseError) {
+          console.error('Failed to parse response as JSON:', parseError);
+          throw new Error(`API returned invalid JSON. Raw response: ${responseText.substring(0, 200)}...`);
         }
         
-        // Parse the response
-        const data = await response.json();
+        if (!response.ok) {
+          // If we got an error response but it parsed as JSON, we can extract the error message
+          const errorMessage = data?.error || `API responded with status ${response.status}`;
+          throw new Error(errorMessage);
+        }
         
         // Log the full response for debugging
         console.log('Product creation response:', data);
@@ -411,8 +424,36 @@
         
       } catch (error) {
         console.error('Error creating product:', error);
-        productData.textContent = `Error: ${error.message}`;
+        
+        // Show detailed error with a timestamp to help match with Netlify logs
+        const timestamp = new Date().toISOString();
+        const errorDetails = `
+Error Time: ${timestamp}
+Message: ${error.message}
+Stack: ${error.stack || 'No stack trace available'}
+
+Please check Netlify function logs around this time.
+        `;
+        
+        // Display the error more visibly
+        productData.textContent = errorDetails;
+        productData.style.color = 'red';
         productResults.classList.remove('hidden');
+        
+        // Add a visible alert that will show in screenshots
+        const errorAlert = document.createElement('div');
+        errorAlert.style.backgroundColor = '#ffdddd';
+        errorAlert.style.border = '1px solid #f44336';
+        errorAlert.style.padding = '15px';
+        errorAlert.style.margin = '15px 0';
+        errorAlert.innerHTML = `
+          <h3>Error Creating Product</h3>
+          <p><strong>Time:</strong> ${timestamp}</p>
+          <p><strong>Error:</strong> ${error.message}</p>
+          <p>Check browser console and network tab for full details</p>
+        `;
+        
+        productResults.prepend(errorAlert);
       } finally {
         // Hide loader
         createLoader.classList.add('hidden');
