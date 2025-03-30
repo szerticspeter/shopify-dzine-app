@@ -235,11 +235,11 @@ export async function handler(event, context) {
     if (productResponse && productResponse.product && productResponse.product.id) {
       const productId = productResponse.product.id;
       
+      // Initialize variables to track delivery profile operations
+      let deliveryProfileId = null;
+      let deliveryProfileResult = { success: false, attempted: false };
+      
       try {
-        // Initialize variables to track delivery profile operations
-        let deliveryProfileId = null;
-        let deliveryProfileResult = { success: false, attempted: false };
-        
         // Step 2a: Create or update delivery profile with shipping rates if provided
         if (shippingRates && shippingCountry) {
           try {
