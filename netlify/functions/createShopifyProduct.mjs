@@ -339,7 +339,25 @@ export async function handler(event, context) {
           }
         }
         
-        // Return success with product, image, and shipping data
+        // Collect debug context to include in response
+        const debugContext = {
+          steps: {
+            productCreated: !!productResponse,
+            productId: productResponse?.product?.id,
+            imageUploaded: !!imageResponse,
+            deliveryProfileCreated: !!deliveryProfileResult?.profileId,
+            metafieldsAdded: !!metafieldsResult
+          },
+          data: {
+            shippingCountry,
+            productPrice,
+            shippingCost,
+            deliveryProfileId,
+            apiVersion
+          }
+        };
+        
+        // Return success with product, image, shipping data and debug logs
         return {
           statusCode: 200,
           headers,
@@ -348,7 +366,8 @@ export async function handler(event, context) {
             image: imageResponse.image,
             metafields: metafieldsResult,
             shipping: deliveryProfileResult,
-            success: true
+            success: true,
+            debug: debugContext
           })
         };
       } catch (imageError) {
@@ -362,7 +381,19 @@ export async function handler(event, context) {
             product: productResponse.product,
             warning: "Product created but image could not be attached: " + imageError.message,
             shipping: deliveryProfileResult || null, // Make sure it's not undefined
-            success: true
+            success: true,
+            debug: {
+              error: {
+                message: imageError.message,
+                stack: imageError.stack,
+                name: imageError.name
+              },
+              shippingCountry,
+              productPrice,
+              shippingCost,
+              deliveryProfileId, 
+              apiVersion
+            }
           })
         };
       }
@@ -372,13 +403,36 @@ export async function handler(event, context) {
   } catch (error) {
     console.error('Error creating Shopify product:', error);
     
+    // Collect all available context for debugging
+    const debugContext = {
+      error: {
+        message: error.message,
+        stack: error.stack,
+        name: error.name
+      },
+      request: {
+        body: typeof event.body === 'string' ? JSON.parse(event.body) : event.body,
+        headers: event.headers,
+        method: event.httpMethod
+      },
+      environment: {
+        apiVersion,
+        shopDomain: shopDomain || 'not_set',
+        hasAccessToken: !!accessToken,
+        hasApiKey: !!apiKey,
+        hasApiSecret: !!apiSecret,
+        nodeEnv: process.env.NODE_ENV
+      }
+    };
+    
     return {
       statusCode: 500,
       headers,
       body: JSON.stringify({ 
         error: error.message || 'Internal server error',
         stack: process.env.NODE_ENV === 'development' ? error.stack : undefined,
-        success: false
+        success: false,
+        debug: debugContext
       })
     };
   }
