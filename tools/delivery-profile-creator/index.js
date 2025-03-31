@@ -182,20 +182,8 @@ async function createTestProduct() {
       vendor: "Testing Vendor",
       descriptionHtml: "<p>This product is for testing Shopify shipping rates.</p>",
       status: "ACTIVE",
-      options: [{ name: "Size", values: ["Default"] }],
-      variants: [
-        {
-          options: ["Default"],
-          price: "19.99",
-          inventoryQuantities: [
-            {
-              availableQuantity: 10,
-              locationId: storeLocationId
-            }
-          ]
-        }
-      ],
-      published: true
+      price: "19.99",
+      images: []
     }
   };
   
