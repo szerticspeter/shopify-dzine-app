@@ -195,8 +195,8 @@ async function createTestProduct() {
         !result.productCreate.userErrors.length) {
       console.log(`Successfully created product: ${result.productCreate.product.title}`);
       
-      // Publish the product
-      await publishProduct(result.productCreate.product.id);
+      // Products are active by default, no need to publish
+      // await publishProduct(result.productCreate.product.id);
       
       // Now get the variant
       const productQuery = `
@@ -412,10 +412,10 @@ async function assignVariantToProfile(profileId, variantId, inventoryItemId, loc
     await updateInventory(inventoryItemId, locationId);
   }
   
-  // Publish the product if we have the product ID
-  if (productId) {
-    await publishProduct(productId);
-  }
+  // Products are active by default, no need to publish
+  // if (productId) {
+  //   await publishProduct(productId);
+  // }
 
   const assignMutation = `
     mutation deliveryProfileUpdate($profileId: ID!, $profile: DeliveryProfileInput!) {
