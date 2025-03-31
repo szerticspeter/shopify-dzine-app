@@ -113,22 +113,6 @@ async function createDeliveryProfile() {
                   }
                 }
               ]
-            },
-            {
-              name: "Rest of World",
-              rest_of_world: true,
-              methodDefinitionsToCreate: [
-                {
-                  name: "Global Flat Rate Shipping",
-                  active: true,
-                  rateDefinition: {
-                    price: {
-                      amount: "9.99",
-                      currencyCode: "EUR"
-                    }
-                  }
-                }
-              ]
             }
           ]
         }
