@@ -42,6 +42,9 @@ async function graphqlRequest(query, variables = {}) {
   }
 }
 
+// Store location data at module level for reuse
+let storeLocationId;
+
 async function createDeliveryProfile() {
   // First, get the location ID
   const locationsQuery = `
@@ -66,6 +69,8 @@ async function createDeliveryProfile() {
   }
   
   const locationId = locationsData.locations.edges[0].node.id;
+  // Save the location ID globally for reuse
+  storeLocationId = locationId;
   console.log(`Using location ID: ${locationId}`);
 
   // Define profile creation mutation
@@ -326,7 +331,7 @@ async function main() {
           profileId, 
           productData.variantId, 
           productData.inventoryItemId, 
-          locationsData.locations.edges[0].node.id
+          storeLocationId
         );
       } else {
         console.log('No product variants available to assign to this profile.');
