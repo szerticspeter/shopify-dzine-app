@@ -366,8 +366,8 @@ async function publishProduct(productId) {
   }
   
   const publishMutation = `
-    mutation publishProduct($id: ID!) {
-      productPublish(id: $id) {
+    mutation {
+      productPublish(input: {id: "${productId}"}) {
         product {
           id
           title
@@ -380,9 +380,7 @@ async function publishProduct(productId) {
     }
   `;
   
-  const variables = {
-    id: productId
-  };
+  const variables = {};
   
   try {
     console.log(`Publishing product ${productId}...`);
