@@ -1054,6 +1054,7 @@ async function createOrUpdateDeliveryProfile(shopDomain, accessToken, countryCod
           priceValue = 10.00; // Default fallback
         }
         
+        // Based on error logs, let's simplify and avoid weight conditions for now
         return {
           name: rate.name,
           rateDefinition: {
@@ -1061,14 +1062,9 @@ async function createOrUpdateDeliveryProfile(shopDomain, accessToken, countryCod
               amount: priceValue.toFixed(2),
               currencyCode: "USD"
             }
-          },
-          weightConditionsToCreate: [
-            {
-              criteria: "LESS_THAN_OR_EQUAL_TO",
-              value: "50.0",
-              unit: "KILOGRAMS"
-            }
-          ]
+          }
+          // Remove weightConditionsToCreate since it's causing errors
+          // We'll set a flat rate without weight conditions
         };
       });
       
