@@ -326,7 +326,7 @@ async function main() {
           profileId, 
           productData.variantId, 
           productData.inventoryItemId, 
-          locationId
+          locationsData.locations.edges[0].node.id
         );
       } else {
         console.log('No product variants available to assign to this profile.');
