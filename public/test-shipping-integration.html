@@ -148,9 +148,12 @@
     </div>
     
     <button id="createProductBtn" disabled>Create Product with Shipping <span id="createLoader" class="loading hidden"></span></button>
+
+    <h3>Test Shipping Profile Creation Only:</h3>
+    <button id="testShippingProfileBtn">Test Create Shipping Profile <span id="shippingProfileLoader" class="loading hidden"></span></button>
     
     <div id="productResults" class="hidden">
-      <h3>Product Creation Results:</h3>
+      <h3>Results:</h3>
       <pre id="productData"></pre>
       
       <div id="productLink" class="hidden">
@@ -164,13 +167,16 @@
     // API endpoints
     const PRODIGI_QUOTE_API = '/.netlify/functions/getProdigiQuote';
     const CREATE_PRODUCT_API = '/.netlify/functions/createShopifyProduct';
+    const SIMPLE_SHIPPING_API = '/.netlify/functions/simple-product-shipping';
     
     // DOM elements
     const getQuoteBtn = document.getElementById('getQuoteBtn');
     const createProductBtn = document.getElementById('createProductBtn');
+    const testShippingProfileBtn = document.getElementById('testShippingProfileBtn');
     const countrySelect = document.getElementById('country');
     const quoteLoader = document.getElementById('quoteLoader');
     const createLoader = document.getElementById('createLoader');
+    const shippingProfileLoader = document.getElementById('shippingProfileLoader');
     const quoteResults = document.getElementById('quoteResults');
     const quoteData = document.getElementById('quoteData');
     const productResults = document.getElementById('productResults');
@@ -476,6 +482,171 @@ Please check Netlify function logs around this time.
         reader.readAsDataURL(file);
       });
     }
+
+    // Test shipping profile creation only
+    testShippingProfileBtn.addEventListener('click', async () => {
+      // Clear previous results
+      productData.textContent = '';
+      productResults.classList.add('hidden');
+      productLink.classList.add('hidden');
+      
+      // Show loader
+      shippingProfileLoader.classList.remove('hidden');
+      
+      try {
+        // Get selected country
+        const country = countrySelect.value;
+        
+        // First get a Prodigi quote to get shipping rates
+        const quoteResponse = await fetch(PRODIGI_QUOTE_API, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            countryCode: country,
+            currencyCode: 'USD'
+          })
+        });
+        
+        if (!quoteResponse.ok) {
+          throw new Error(`Quote API responded with status ${quoteResponse.status}`);
+        }
+        
+        const quoteData = await quoteResponse.json();
+        console.log('Shipping quote response:', quoteData);
+        
+        if (!quoteData.formattedShippingRates || quoteData.formattedShippingRates.length === 0) {
+          throw new Error('No shipping rates found in response');
+        }
+        
+        // Create a test product without image just to test shipping profile
+        const testData = {
+          title: "Shipping Profile Test " + new Date().toISOString(),
+          description: "Test product for shipping profile only",
+          price: {
+            product: "25.00",
+            shipping: quoteData.formattedShippingRates[0].price
+          },
+          // Using placeholder image URL
+          imageUrl: "https://picsum.photos/id/26/800/600", 
+          shippingCountry: country,
+          shippingRates: quoteData.formattedShippingRates,
+          testShippingProfileOnly: true  // Flag to indicate special test mode
+        };
+        
+        console.log('Testing shipping profile creation with data:', testData);
+        
+        // First try with the original implementation
+        const response = await fetch(CREATE_PRODUCT_API, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify(testData)
+        });
+        
+        // Get the raw response text for debugging
+        const responseText = await response.text();
+        console.log('Raw shipping profile test response:', responseText);
+        
+        try {
+          const data = JSON.parse(responseText);
+          console.log('Parsed shipping profile test response:', data);
+          
+          // Display results
+          productData.textContent = 'ORIGINAL IMPLEMENTATION RESULTS:\n\n';
+          productData.textContent += JSON.stringify(data, null, 2);
+          
+          // Now try with the simplified implementation
+          console.log('Testing with simplified implementation...');
+          
+          const simpleResponse = await fetch(SIMPLE_SHIPPING_API, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(testData)
+          });
+          
+          const simpleText = await simpleResponse.text();
+          console.log('Raw simplified implementation response:', simpleText);
+          
+          try {
+            const simpleData = JSON.parse(simpleText);
+            console.log('Parsed simplified implementation response:', simpleData);
+            
+            // Add to display results
+            productData.textContent += '\n\n\nSIMPLIFIED IMPLEMENTATION RESULTS:\n\n';
+            productData.textContent += JSON.stringify(simpleData, null, 2);
+          } catch (parseError) {
+            console.error('Failed to parse simplified implementation response:', parseError);
+            productData.textContent += '\n\n\nSIMPLIFIED IMPLEMENTATION ERROR:\n\n';
+            productData.textContent += simpleText;
+          }
+          
+          productResults.classList.remove('hidden');
+          
+          // Check for shipping profile creation success
+          const originalSuccess = data.shipping && data.shipping.profileId;
+          const simpleSuccess = simpleData && simpleData.shipping && simpleData.shipping.profileId;
+          
+          if (originalSuccess || simpleSuccess) {
+            const profileId = originalSuccess ? data.shipping.profileId : simpleData.shipping.profileId;
+            
+            const successAlert = document.createElement('div');
+            successAlert.style.backgroundColor = '#dff0d8';
+            successAlert.style.border = '1px solid #3c763d';
+            successAlert.style.padding = '15px';
+            successAlert.style.margin = '15px 0';
+            successAlert.innerHTML = `
+              <h3>Shipping Profile Created Successfully</h3>
+              <p><strong>Profile ID:</strong> ${profileId}</p>
+              <p><strong>Country:</strong> ${country}</p>
+              <p>Check Shopify admin to confirm the profile was created</p>
+            `;
+            
+            productResults.prepend(successAlert);
+          } else {
+            const errorAlert = document.createElement('div');
+            errorAlert.style.backgroundColor = '#ffdddd';
+            errorAlert.style.border = '1px solid #f44336';
+            errorAlert.style.padding = '15px';
+            errorAlert.style.margin = '15px 0';
+            errorAlert.innerHTML = `
+              <h3>Shipping Profile Creation Failed</h3>
+              <p>Neither implementation successfully created a shipping profile.</p>
+              <p>Check browser console and network tab for full details</p>
+            `;
+            
+            productResults.prepend(errorAlert);
+          }
+          
+        } catch (parseError) {
+          console.error('Failed to parse response:', parseError);
+          productData.textContent = responseText;
+          productResults.classList.remove('hidden');
+        }
+        
+      } catch (error) {
+        console.error('Error testing shipping profile:', error);
+        
+        const timestamp = new Date().toISOString();
+        const errorDetails = `
+Error Time: ${timestamp}
+Message: ${error.message}
+Stack: ${error.stack || 'No stack trace available'}
+
+Please check Netlify function logs around this time.
+        `;
+        
+        productData.textContent = errorDetails;
+        productResults.classList.remove('hidden');
+      } finally {
+        // Hide loader
+        shippingProfileLoader.classList.add('hidden');
+      }
+    });
   </script>
 </body>
 </html>
