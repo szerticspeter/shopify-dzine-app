@@ -181,7 +181,21 @@ async function createTestProduct() {
       productType: "Test",
       vendor: "Testing Vendor",
       descriptionHtml: "<p>This product is for testing Shopify shipping rates.</p>",
-      status: "ACTIVE"
+      status: "ACTIVE",
+      options: [{ name: "Size", values: ["Default"] }],
+      variants: [
+        {
+          options: ["Default"],
+          price: "19.99",
+          inventoryQuantities: [
+            {
+              availableQuantity: 10,
+              locationId: storeLocationId
+            }
+          ]
+        }
+      ],
+      published: true
     }
   };
   
@@ -195,8 +209,8 @@ async function createTestProduct() {
         !result.productCreate.userErrors.length) {
       console.log(`Successfully created product: ${result.productCreate.product.title}`);
       
-      // Products are active by default, no need to publish
-      // await publishProduct(result.productCreate.product.id);
+      // Explicitly publish the product to make it visible in the storefront
+      await publishProduct(result.productCreate.product.id);
       
       // Now get the variant
       const productQuery = `
@@ -365,30 +379,61 @@ async function publishProduct(productId) {
     return false;
   }
   
-  const publishMutation = `
-    mutation {
-      productPublish(input: {id: "${productId}"}) {
-        product {
-          id
-          title
-        }
-        userErrors {
-          field
-          message
+  // First get the publications
+  const pubQuery = `
+    query {
+      publications(first: 1) {
+        edges {
+          node {
+            id
+            name
+          }
         }
       }
     }
   `;
   
-  const variables = {};
-  
   try {
+    const pubData = await graphqlRequest(pubQuery);
+    if (!pubData.publications || !pubData.publications.edges || !pubData.publications.edges.length) {
+      console.log('No publications found.');
+      return false;
+    }
+    
+    const publicationId = pubData.publications.edges[0].node.id;
+    console.log(`Found publication: ${pubData.publications.edges[0].node.name} (${publicationId})`);
+    
+    // Now publish the product to this publication
+    const publishMutation = `
+      mutation {
+        publishablePublish(
+          id: "${productId}",
+          input: {
+            publicationId: "${publicationId}"
+          }
+        ) {
+          publishable {
+            ... on Product {
+              id
+              title
+            }
+          }
+          userErrors {
+            field
+            message
+          }
+        }
+      }
+    `;
+    
+    const variables = {};
+    
     console.log(`Publishing product ${productId}...`);
     const result = await graphqlRequest(publishMutation, variables);
     console.log('Publish result:', JSON.stringify(result, null, 2));
     
-    if (result.productPublish && 
-        !result.productPublish.userErrors.length) {
+    if (result.publishablePublish && 
+        !result.publishablePublish.userErrors.length) {
       console.log('Successfully published product!');
       return true;
     } else {
@@ -397,6 +442,10 @@ async function publishProduct(productId) {
     }
   } catch (error) {
     console.error('Error publishing product:', error);
+    return false;
+  }
+  } catch (error) {
+    console.error('Error getting publications:', error);
     return false;
   }
 }
@@ -412,10 +461,10 @@ async function assignVariantToProfile(profileId, variantId, inventoryItemId, loc
     await updateInventory(inventoryItemId, locationId);
   }
   
-  // Products are active by default, no need to publish
-  // if (productId) {
-  //   await publishProduct(productId);
-  // }
+  // Explicitly publish the product to ensure storefront visibility
+  if (productId) {
+    await publishProduct(productId);
+  }
 
   const assignMutation = `
     mutation deliveryProfileUpdate($profileId: ID!, $profile: DeliveryProfileInput!) {
