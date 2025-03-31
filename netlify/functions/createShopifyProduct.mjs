@@ -1077,7 +1077,14 @@ async function createOrUpdateDeliveryProfile(shopDomain, accessToken, countryCod
             zonesToCreate: [
               {
                 name: `${countryCode} Zone`,
-                countries: [{ code: countryCode }],
+                countries: [{ 
+                  code: countryCode,
+                  provinces: countryCode === 'US' ? [
+                    { code: 'AL' }, // Alabama
+                    { code: 'NY' }, // New York
+                    { code: 'CA' }  // California
+                  ] : undefined
+                }],
                 methodDefinitionsToCreate: formattedRateDefinitions
               }
             ]
