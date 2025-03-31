@@ -155,6 +155,12 @@ export async function handler(event, context) {
       console.log('Removed admin path from domain:', shopDomain);
     }
     
+    // Remove any trailing slashes from the domain
+    if (shopDomain.endsWith('/')) {
+      shopDomain = shopDomain.replace(/\/+$/, '');
+      console.log('Removed trailing slash from domain:', shopDomain);
+    }
+    
     console.log('Using Shopify domain:', shopDomain);
 
     // Get API version
@@ -745,8 +751,15 @@ async function createOrUpdateDeliveryProfile(shopDomain, accessToken, countryCod
     console.log(`API Version: ${apiVersion}`);
     console.log(`Access token available: ${!!accessToken}`);
     
+    // Clean and validate the shop domain
+    // Remove any trailing slashes that might be present
+    if (shopDomain && shopDomain.endsWith('/')) {
+      shopDomain = shopDomain.replace(/\/+$/, '');
+      console.log('Removed trailing slash from domain in delivery profile:', shopDomain);
+    }
+    
     // Validate the shop domain
-    if (!shopDomain || shopDomain.includes('/') || !shopDomain.includes('.')) {
+    if (!shopDomain || !shopDomain.includes('.')) {
       throw new Error(`Invalid shop domain format: ${shopDomain}`);
     }
     
@@ -986,52 +999,90 @@ async function createOrUpdateDeliveryProfile(shopDomain, accessToken, countryCod
         }
       `;
       
-      // Build delivery profile with MANUAL rate providers (flat rates)
-      // Based on latest Shopify GraphQL Admin API documentation
+      // Get the first location ID - needed for creating a delivery profile
+      console.log('Getting location ID for delivery profile');
+      const getLocationsQuery = `
+        query {
+          locations(first: 1) {
+            edges {
+              node {
+                id
+                name
+              }
+            }
+          }
+        }
+      `;
+      
+      // Get location information first
+      const locationsResponse = await fetch(graphqlEndpoint, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...authHeaders
+        },
+        body: JSON.stringify({ query: getLocationsQuery })
+      });
+      
+      if (!locationsResponse.ok) {
+        console.error(`Failed to get locations: ${await locationsResponse.text()}`);
+        throw new Error(`Failed to get locations: HTTP ${locationsResponse.status}`);
+      }
+      
+      const locationsData = await locationsResponse.json();
+      console.log('Locations data:', JSON.stringify(locationsData));
+      
+      if (!locationsData.data?.locations?.edges?.length) {
+        console.error('No locations found for delivery profile');
+        throw new Error('No locations found for delivery profile');
+      }
+      
+      const locationId = locationsData.data.locations.edges[0].node.id;
+      console.log(`Using location ID: ${locationId}`);
+      
+      // Extract the price values for the rate definitions
+      const formattedRateDefinitions = rateDefinitions.map(rate => {
+        // Extract the price value properly
+        let priceValue;
+        if (typeof rate.price === 'object' && rate.price.amount) {
+          priceValue = parseFloat(rate.price.amount);
+        } else if (typeof rate.price === 'string') {
+          priceValue = parseFloat(rate.price);
+        } else if (typeof rate.price === 'number') {
+          priceValue = rate.price;
+        } else {
+          priceValue = 10.00; // Default fallback
+        }
+        
+        return {
+          name: rate.name,
+          rateDefinition: {
+            price: { 
+              amount: priceValue.toFixed(2),
+              currencyCode: "USD"
+            }
+          },
+          weightConditionsToCreate: [
+            {
+              criteria: "LESS_THAN_OR_EQUAL_TO",
+              value: "50.0",
+              unit: "KILOGRAMS"
+            }
+          ]
+        };
+      });
+      
+      // Build delivery profile according to current Admin API documentation
       const profileInput = {
         name: profileName,
-        profileType: "CUSTOM", // Use CUSTOM type for flat rates
-        locationGroups: [
+        locationGroupsToCreate: [
           {
-            locationGroupType: "COUNTRY",
-            locations: [countryCode],
-            locationGroupZones: [
+            locationsToAdd: [locationId],
+            zonesToCreate: [
               {
                 name: `${countryCode} Zone`,
                 countries: [{ code: countryCode }],
-                methodDefinitions: rateDefinitions.map(rate => {
-                  // Extract the price value properly
-                  let priceValue;
-                  if (typeof rate.price === 'object' && rate.price.amount) {
-                    priceValue = parseFloat(rate.price.amount);
-                  } else if (typeof rate.price === 'string') {
-                    priceValue = parseFloat(rate.price);
-                  } else if (typeof rate.price === 'number') {
-                    priceValue = rate.price;
-                  } else {
-                    priceValue = 10.00; // Default fallback
-                  }
-                  
-                  // Manual shipping rate with weight conditions for flat rate shipping
-                  return {
-                    name: rate.name,
-                    methodType: "MANUAL", // MANUAL for flat rates
-                    active: true,
-                    rateProvider: {
-                      flat: {
-                        price: { amount: priceValue.toFixed(2) }
-                      }
-                    },
-                    weightConditions: [
-                      {
-                        criteriaRange: {
-                          minimum: { value: "0.0", unit: "KILOGRAMS" },
-                          maximum: { value: "50.0", unit: "KILOGRAMS" }
-                        }
-                      }
-                    ]
-                  };
-                })
+                methodDefinitionsToCreate: formattedRateDefinitions
               }
             ]
           }
