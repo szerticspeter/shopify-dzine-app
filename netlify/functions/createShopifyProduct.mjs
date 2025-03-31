@@ -1449,9 +1449,10 @@ async function assignProductToDeliveryProfile(shopDomain, accessToken, productId
     }
     
     // Now assign the product to the delivery profile using GraphQL
+    // The mutation name has changed in recent API versions
     const assignMutation = `
-      mutation deliveryProfileAssign($deliveryProfileId: ID!, $productVariantIds: [ID!]!) {
-        deliveryProfileAssign(deliveryProfileId: $deliveryProfileId, productVariantIds: $productVariantIds) {
+      mutation deliveryProfileSetProductVariantProfileAssignments($profileAssignments: [DeliveryProfileAssignment!]!) {
+        deliveryProfileSetProductVariantProfileAssignments(profileAssignments: $profileAssignments) {
           userErrors {
             field
             message
@@ -1518,7 +1519,15 @@ async function assignProductToDeliveryProfile(shopDomain, accessToken, productId
       
       console.log(`Found ${variantIds.length} variants for product, assigning to delivery profile`);
       
-      // Now assign variants to the delivery profile
+      // Now assign variants to the delivery profile with the new API format
+      const profileAssignments = variantIds.map(variantId => ({
+        productVariantId: variantId,
+        deliveryProfileId: profileId
+      }));
+      
+      console.log(`Assigning ${variantIds.length} variants to profile ${profileId}`);
+      console.log('Using profile assignments format:', JSON.stringify(profileAssignments));
+      
       const assignResponse = await fetch(graphqlEndpoint, {
         method: 'POST',
         headers: {
@@ -1528,8 +1537,7 @@ async function assignProductToDeliveryProfile(shopDomain, accessToken, productId
         body: JSON.stringify({
           query: assignMutation,
           variables: {
-            deliveryProfileId: profileId,
-            productVariantIds: variantIds
+            profileAssignments: profileAssignments
           }
         })
       });
