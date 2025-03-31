@@ -159,6 +159,9 @@ async function getFirstProductVariant() {
                 node {
                   id
                   title
+                  inventoryItem {
+                    id
+                  }
                 }
               }
             }
@@ -188,17 +191,78 @@ async function getFirstProductVariant() {
     console.log(`Found product: ${product.title}`);
     console.log(`Product variant: ${variant.title} (${variant.id})`);
     
-    return variant.id;
+    if (variant.inventoryItem) {
+      console.log(`Inventory item ID: ${variant.inventoryItem.id}`);
+    }
+    
+    return {
+      variantId: variant.id,
+      inventoryItemId: variant.inventoryItem ? variant.inventoryItem.id : null
+    };
   } catch (error) {
     console.error('Error fetching products:', error);
     return null;
   }
 }
 
-async function assignVariantToProfile(profileId, variantId) {
+async function updateInventory(inventoryItemId, locationId) {
+  if (!inventoryItemId || !locationId) {
+    console.log('Missing required inventory item ID or location ID.');
+    return false;
+  }
+  
+  const updateMutation = `
+    mutation inventoryBulkAdjustQuantityAtLocation($inventoryItemAdjustments: [InventoryAdjustItemInput!]!) {
+      inventoryBulkAdjustQuantityAtLocation(inventoryItemAdjustments: $inventoryItemAdjustments) {
+        inventoryLevels {
+          available
+        }
+        userErrors {
+          field
+          message
+        }
+      }
+    }
+  `;
+
+  const variables = {
+    inventoryItemAdjustments: [
+      {
+        inventoryItemId: inventoryItemId,
+        locationId: locationId,
+        availableDelta: 10
+      }
+    ]
+  };
+
+  try {
+    console.log(`Setting inventory for item ${inventoryItemId} at location ${locationId}...`);
+    const result = await graphqlRequest(updateMutation, variables);
+    console.log('Inventory update result:', JSON.stringify(result, null, 2));
+    
+    if (result.inventoryBulkAdjustQuantityAtLocation && 
+        !result.inventoryBulkAdjustQuantityAtLocation.userErrors.length) {
+      console.log('Successfully updated inventory to 10 items!');
+      return true;
+    } else {
+      console.log('Failed to update inventory.');
+      return false;
+    }
+  } catch (error) {
+    console.error('Error updating inventory:', error);
+    return false;
+  }
+}
+
+async function assignVariantToProfile(profileId, variantId, inventoryItemId, locationId) {
   if (!profileId || !variantId) {
     console.log('Missing required profile ID or variant ID.');
     return false;
+  }
+  
+  // Update inventory if we have the inventory item ID
+  if (inventoryItemId && locationId) {
+    await updateInventory(inventoryItemId, locationId);
   }
 
   const assignMutation = `
@@ -258,10 +322,15 @@ async function main() {
       console.log('\nDelivery profile created with flat rate shipping.');
       
       // Test assigning a product variant to the profile
-      const variantId = await getFirstProductVariant();
+      const productData = await getFirstProductVariant();
       
-      if (variantId) {
-        await assignVariantToProfile(profileId, variantId);
+      if (productData && productData.variantId) {
+        await assignVariantToProfile(
+          profileId, 
+          productData.variantId, 
+          productData.inventoryItemId, 
+          locationId
+        );
       } else {
         console.log('No product variants available to assign to this profile.');
       }
