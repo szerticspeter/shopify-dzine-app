@@ -181,9 +181,7 @@ async function createTestProduct() {
       productType: "Test",
       vendor: "Testing Vendor",
       descriptionHtml: "<p>This product is for testing Shopify shipping rates.</p>",
-      status: "ACTIVE",
-      price: "19.99",
-      images: []
+      status: "ACTIVE"
     }
   };
   
