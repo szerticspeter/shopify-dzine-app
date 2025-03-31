@@ -116,12 +116,7 @@ async function createDeliveryProfile() {
             },
             {
               name: "Rest of World",
-              countries: [
-                {
-                  code: "REST_OF_WORLD",
-                  provinces: []
-                }
-              ],
+              rest_of_world: true,
               methodDefinitionsToCreate: [
                 {
                   name: "Global Flat Rate Shipping",
