@@ -156,6 +156,7 @@ async function getFirstProductVariant() {
           node {
             id
             title
+            status
             variants(first: 1) {
               edges {
                 node {
@@ -190,7 +191,8 @@ async function getFirstProductVariant() {
     const product = productsData.products.edges[0].node;
     const variant = product.variants.edges[0].node;
     
-    console.log(`Found product: ${product.title}`);
+    console.log(`Found product: ${product.title} (${product.id})`);
+    console.log(`Product status: ${product.status}`);
     console.log(`Product variant: ${variant.title} (${variant.id})`);
     
     if (variant.inventoryItem) {
@@ -198,6 +200,7 @@ async function getFirstProductVariant() {
     }
     
     return {
+      productId: product.id,
       variantId: variant.id,
       inventoryItemId: variant.inventoryItem ? variant.inventoryItem.id : null
     };
@@ -256,7 +259,51 @@ async function updateInventory(inventoryItemId, locationId) {
   }
 }
 
-async function assignVariantToProfile(profileId, variantId, inventoryItemId, locationId) {
+async function publishProduct(productId) {
+  if (!productId) {
+    console.log('Missing required product ID.');
+    return false;
+  }
+  
+  const publishMutation = `
+    mutation publishProduct($id: ID!) {
+      publishablePublish(id: $id, input: {}) {
+        publishable {
+          id
+          publishedOnCurrentPublication
+        }
+        userErrors {
+          field
+          message
+        }
+      }
+    }
+  `;
+  
+  const variables = {
+    id: productId
+  };
+  
+  try {
+    console.log(`Publishing product ${productId}...`);
+    const result = await graphqlRequest(publishMutation, variables);
+    console.log('Publish result:', JSON.stringify(result, null, 2));
+    
+    if (result.publishablePublish && 
+        !result.publishablePublish.userErrors.length) {
+      console.log('Successfully published product!');
+      return true;
+    } else {
+      console.log('Failed to publish product.');
+      return false;
+    }
+  } catch (error) {
+    console.error('Error publishing product:', error);
+    return false;
+  }
+}
+
+async function assignVariantToProfile(profileId, variantId, inventoryItemId, locationId, productId) {
   if (!profileId || !variantId) {
     console.log('Missing required profile ID or variant ID.');
     return false;
@@ -265,6 +312,11 @@ async function assignVariantToProfile(profileId, variantId, inventoryItemId, loc
   // Update inventory if we have the inventory item ID
   if (inventoryItemId && locationId) {
     await updateInventory(inventoryItemId, locationId);
+  }
+  
+  // Publish the product if we have the product ID
+  if (productId) {
+    await publishProduct(productId);
   }
 
   const assignMutation = `
@@ -331,7 +383,8 @@ async function main() {
           profileId, 
           productData.variantId, 
           productData.inventoryItemId, 
-          storeLocationId
+          storeLocationId,
+          productData.productId
         );
       } else {
         console.log('No product variants available to assign to this profile.');
