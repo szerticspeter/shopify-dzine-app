@@ -214,8 +214,8 @@ async function updateInventory(inventoryItemId, locationId) {
   }
   
   const updateMutation = `
-    mutation inventoryBulkAdjustQuantityAtLocation($inventoryItemAdjustments: [InventoryAdjustItemInput!]!) {
-      inventoryBulkAdjustQuantityAtLocation(inventoryItemAdjustments: $inventoryItemAdjustments) {
+    mutation inventoryBulkAdjustQuantityAtLocation($locationId: ID!, $inventoryItemAdjustments: [InventoryAdjustItemInput!]!) {
+      inventoryBulkAdjustQuantityAtLocation(locationId: $locationId, inventoryItemAdjustments: $inventoryItemAdjustments) {
         inventoryLevels {
           available
         }
@@ -228,10 +228,10 @@ async function updateInventory(inventoryItemId, locationId) {
   `;
 
   const variables = {
+    locationId: locationId,
     inventoryItemAdjustments: [
       {
         inventoryItemId: inventoryItemId,
-        locationId: locationId,
         availableDelta: 10
       }
     ]
