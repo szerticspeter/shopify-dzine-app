@@ -45,6 +45,9 @@ async function graphqlRequest(query, variables = {}) {
 // Store location data at module level for reuse
 let storeLocationId;
 
+// Flag to create a test product
+const CREATE_TEST_PRODUCT = true;
+
 async function createDeliveryProfile() {
   // First, get the location ID
   const locationsQuery = `
@@ -144,6 +147,105 @@ async function createDeliveryProfile() {
     }
   } catch (error) {
     console.error('Failed to create delivery profile:', error);
+    return null;
+  }
+}
+
+async function createTestProduct() {
+  if (!storeLocationId) {
+    console.log('Cannot create product: No store location ID available');
+    return null;
+  }
+  
+  const timestamp = new Date().toISOString();
+  
+  const createMutation = `
+    mutation productCreate($input: ProductInput!) {
+      productCreate(input: $input) {
+        product {
+          id
+          title
+          status
+        }
+        userErrors {
+          field
+          message
+        }
+      }
+    }
+  `;
+  
+  const variables = {
+    input: {
+      title: `Shipping Test Product ${timestamp}`,
+      productType: "Test",
+      vendor: "Testing Vendor",
+      descriptionHtml: "<p>This product is for testing Shopify shipping rates.</p>",
+      status: "ACTIVE",
+      variants: [
+        {
+          price: "19.99",
+          inventoryQuantities: {
+            locationId: storeLocationId,
+            availableQuantity: 10
+          }
+        }
+      ]
+    }
+  };
+  
+  try {
+    console.log('Creating test product...');
+    const result = await graphqlRequest(createMutation, variables);
+    console.log('Product creation result:', JSON.stringify(result, null, 2));
+    
+    if (result.productCreate && 
+        result.productCreate.product && 
+        !result.productCreate.userErrors.length) {
+      console.log(`Successfully created product: ${result.productCreate.product.title}`);
+      
+      // Publish the product
+      await publishProduct(result.productCreate.product.id);
+      
+      // Now get the variant
+      const productQuery = `
+        query getProduct($id: ID!) {
+          product(id: "${result.productCreate.product.id}") {
+            variants(first: 1) {
+              edges {
+                node {
+                  id
+                  inventoryItem {
+                    id
+                  }
+                }
+              }
+            }
+          }
+        }
+      `;
+      
+      const productData = await graphqlRequest(productQuery);
+      if (productData.product &&
+          productData.product.variants &&
+          productData.product.variants.edges &&
+          productData.product.variants.edges.length > 0) {
+        
+        const variant = productData.product.variants.edges[0].node;
+        
+        return {
+          productId: result.productCreate.product.id,
+          variantId: variant.id,
+          inventoryItemId: variant.inventoryItem ? variant.inventoryItem.id : null
+        };
+      }
+    } else {
+      console.log('Failed to create test product.');
+    }
+    
+    return null;
+  } catch (error) {
+    console.error('Error creating test product:', error);
     return null;
   }
 }
@@ -376,7 +478,15 @@ async function main() {
       console.log('\nDelivery profile created with flat rate shipping.');
       
       // Test assigning a product variant to the profile
-      const productData = await getFirstProductVariant();
+      let productData;
+      
+      if (CREATE_TEST_PRODUCT) {
+        // Create a new product specifically for testing shipping
+        productData = await createTestProduct();
+      } else {
+        // Use an existing product
+        productData = await getFirstProductVariant();
+      }
       
       if (productData && productData.variantId) {
         await assignVariantToProfile(
