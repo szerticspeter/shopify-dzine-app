@@ -200,7 +200,7 @@ async function createTestProduct() {
       
       // Now get the variant
       const productQuery = `
-        query getProduct($id: ID!) {
+        query {
           product(id: "${result.productCreate.product.id}") {
             variants(first: 1) {
               edges {
@@ -367,10 +367,10 @@ async function publishProduct(productId) {
   
   const publishMutation = `
     mutation publishProduct($id: ID!) {
-      publishablePublish(id: $id, input: {}) {
-        publishable {
+      productPublish(id: $id) {
+        product {
           id
-          publishedOnCurrentPublication
+          title
         }
         userErrors {
           field
@@ -389,8 +389,8 @@ async function publishProduct(productId) {
     const result = await graphqlRequest(publishMutation, variables);
     console.log('Publish result:', JSON.stringify(result, null, 2));
     
-    if (result.publishablePublish && 
-        !result.publishablePublish.userErrors.length) {
+    if (result.productPublish && 
+        !result.productPublish.userErrors.length) {
       console.log('Successfully published product!');
       return true;
     } else {
