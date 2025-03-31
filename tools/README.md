@@ -4,6 +4,20 @@ This directory contains internal tools for the Dzine.ai Canvas App with Prodigi 
 
 ## Available Tools
 
+### Delivery Profile Creator
+
+A standalone tool for creating Shopify delivery profiles with flat shipping rates and assigning products to them.
+
+#### Running the Tool
+
+```
+cd tools/delivery-profile-creator
+npm install
+npm start
+```
+
+See the [Delivery Profile Creator README](./delivery-profile-creator/README.md) for more details, and check our [Shopify Shipping Integration Guide](./SHIPPING.md) for comprehensive information about Shopify shipping integration.
+
 ### Product Template Creator App
 
 A tool for manually defining the placement area on product stock photos where customer images should appear.
@@ -42,6 +56,17 @@ A tool that uses computer vision to automatically detect rectangular canvas area
    ```
 
 ## Tool Descriptions
+
+### Delivery Profile Creator
+
+This tool enables you to:
+- Create delivery profiles with flat shipping rates via Shopify's GraphQL Admin API
+- Assign shipping rates to specific countries/regions
+- Create test products and set their inventory
+- Assign products to delivery profiles
+- Ensure proper shipping rates appear during checkout
+
+The tool is ideal for implementing custom shipping rates for various products and regions, especially when using external shipping providers like Prodigi.
 
 ### Product Template Creator
 
