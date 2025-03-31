@@ -84,7 +84,7 @@ async function createDeliveryProfile() {
     }
   `;
 
-  // Simple US profile with CA and NY states
+  // Create profile for Hungary
   const timestamp = new Date().toISOString().replace(/[-:.TZ]/g, '');
   const profileVariables = {
     profile: {
@@ -94,24 +94,42 @@ async function createDeliveryProfile() {
           locationsToAdd: [locationId],
           zonesToCreate: [
             {
-              name: "US Zone",
+              name: "Hungary",
               countries: [
                 {
-                  code: "US",
-                  provinces: [
-                    { code: "CA" },
-                    { code: "NY" }
-                  ]
+                  code: "HU",
+                  provinces: []
                 }
               ],
               methodDefinitionsToCreate: [
                 {
-                  name: "Flat Rate Shipping",
+                  name: "Hungary Flat Rate Shipping",
                   active: true,
                   rateDefinition: {
                     price: {
                       amount: "5.99",
-                      currencyCode: "USD"
+                      currencyCode: "EUR"
+                    }
+                  }
+                }
+              ]
+            },
+            {
+              name: "Rest of World",
+              countries: [
+                {
+                  code: "REST_OF_WORLD",
+                  provinces: []
+                }
+              ],
+              methodDefinitionsToCreate: [
+                {
+                  name: "Global Flat Rate Shipping",
+                  active: true,
+                  rateDefinition: {
+                    price: {
+                      amount: "9.99",
+                      currencyCode: "EUR"
                     }
                   }
                 }
