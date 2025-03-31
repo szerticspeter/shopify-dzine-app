@@ -181,16 +181,7 @@ async function createTestProduct() {
       productType: "Test",
       vendor: "Testing Vendor",
       descriptionHtml: "<p>This product is for testing Shopify shipping rates.</p>",
-      status: "ACTIVE",
-      variants: [
-        {
-          price: "19.99",
-          inventoryQuantities: {
-            locationId: storeLocationId,
-            availableQuantity: 10
-          }
-        }
-      ]
+      status: "ACTIVE"
     }
   };
   
@@ -225,6 +216,8 @@ async function createTestProduct() {
         }
       `;
       
+      // We'll set inventory later after getting the variant ID
+      
       const productData = await graphqlRequest(productQuery);
       if (productData.product &&
           productData.product.variants &&
@@ -232,6 +225,11 @@ async function createTestProduct() {
           productData.product.variants.edges.length > 0) {
         
         const variant = productData.product.variants.edges[0].node;
+        
+        // Set inventory for the variant
+        if (variant.inventoryItem && variant.inventoryItem.id) {
+          await updateInventory(variant.inventoryItem.id, storeLocationId);
+        }
         
         return {
           productId: result.productCreate.product.id,
