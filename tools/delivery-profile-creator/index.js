@@ -379,21 +379,21 @@ async function publishProduct(productId) {
     return false;
   }
   
-  // First get the publications
-  const pubQuery = `
-    query {
-      publications(first: 1) {
-        edges {
-          node {
-            id
-            name
+  try {
+    // First get the publications
+    const pubQuery = `
+      query {
+        publications(first: 1) {
+          edges {
+            node {
+              id
+              name
+            }
           }
         }
       }
-    }
-  `;
-  
-  try {
+    `;
+    
     const pubData = await graphqlRequest(pubQuery);
     if (!pubData.publications || !pubData.publications.edges || !pubData.publications.edges.length) {
       console.log('No publications found.');
@@ -426,10 +426,8 @@ async function publishProduct(productId) {
       }
     `;
     
-    const variables = {};
-    
     console.log(`Publishing product ${productId}...`);
-    const result = await graphqlRequest(publishMutation, variables);
+    const result = await graphqlRequest(publishMutation, {});
     console.log('Publish result:', JSON.stringify(result, null, 2));
     
     if (result.publishablePublish && 
@@ -441,11 +439,7 @@ async function publishProduct(productId) {
       return false;
     }
   } catch (error) {
-    console.error('Error publishing product:', error);
-    return false;
-  }
-  } catch (error) {
-    console.error('Error getting publications:', error);
+    console.error('Error in publishing process:', error);
     return false;
   }
 }
