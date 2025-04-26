@@ -47,7 +47,7 @@ export async function handler(event, context) {
       };
     }
     
-    const { title, description, price, imageUrl, metafields } = requestBody;
+    const { title, description, price, imageUrl, metafields, shippingCountry } = requestBody;
     
     // Log request for debugging
     console.log('Creating product with:', { 
@@ -158,6 +158,8 @@ export async function handler(event, context) {
     const apiVersion = process.env.SHOPIFY_API_VERSION || '2023-07';
 
     // Prepare product data
+    // Extract optional shipping country for integration
+    console.log('Shipping country:', shippingCountry);
     const productData = {
       title,
       body_html: description || '',
@@ -179,6 +181,126 @@ export async function handler(event, context) {
     // Step 2: If product created successfully, attach the image
     if (productResponse && productResponse.product && productResponse.product.id) {
       const productId = productResponse.product.id;
+      // Shipping integration: fetch rate from Prodigi and create a delivery profile
+      if (shippingCountry) {
+        try {
+          console.log('Fetching shipping rate from Prodigi for country', shippingCountry);
+          // Read Prodigi API key from netlify env var (match React naming)
+          const prodigiApiKey = process.env.REACT_APP_PRODIGI_API_KEY;
+          const quoteUrl = process.env.PRODIGI_QUOTE_URL || 'https://api.sandbox.prodigi.com/v4.0/quotes';
+          const quoteRequest = {
+            shippingMethod: 'Budget',
+            destinationCountryCode: shippingCountry,
+            currencyCode: process.env.SHOP_CURRENCY || 'USD',
+            items: [
+              {
+                sku: process.env.REACT_APP_PRODIGI_CANVAS_SKU || 'GLOBAL-CAN-16X20',
+                copies: 1,
+                attributes: {},
+                assets: [{ printArea: 'default' }]
+              }
+            ]
+          };
+          const quoteResponse = await fetch(quoteUrl, {
+            method: 'POST',
+            headers: { 'X-API-Key': prodigiApiKey, 'Content-Type': 'application/json' },
+            body: JSON.stringify(quoteRequest)
+          });
+          if (!quoteResponse.ok) {
+            console.error('Prodigi quote request failed with status', quoteResponse.status);
+          } else {
+            const quoteData = await quoteResponse.json();
+            const quotes = Array.isArray(quoteData.quotes) ? quoteData.quotes : quoteData;
+            const budgetQuote = quotes.find(q => q.shipmentMethod?.toLowerCase() === 'budget') || quotes[0];
+            const shippingAmount = budgetQuote.costSummary?.shipping?.amount;
+            const currencyCode = budgetQuote.costSummary?.shipping?.currency;
+            console.log('Prodigi shipping rate:', shippingAmount, currencyCode);
+            const graphqlUrl = `https://${shopDomain}/admin/api/${apiVersion}/graphql.json`;
+            // Fetch location ID
+            const locationQuery = { query: `query { locations(first: 1) { edges { node { id } } } }` };
+            const locationRes = await fetch(graphqlUrl, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json', 'X-Shopify-Access-Token': accessToken },
+              body: JSON.stringify(locationQuery)
+            });
+            const locationData = await locationRes.json();
+            const locationId = locationData.data.locations.edges[0].node.id;
+            // Create delivery profile via GraphQL
+            const createProfileMutation = `
+              mutation deliveryProfileCreate($profile: DeliveryProfileInput!) {
+                deliveryProfileCreate(profile: $profile) {
+                  profile { id }
+                  userErrors { field message }
+                }
+              }
+            `;
+            const profileVariables = {
+              profile: {
+                name: `${shippingCountry} Shipping (${currencyCode} ${shippingAmount})`,
+                locationGroupsToCreate: [
+                  {
+                    locationsToAdd: [locationId],
+                    zonesToCreate: [
+                      {
+                        name: `${shippingCountry} Shipping`,
+                        countries: [{ code: shippingCountry, provinces: [] }],
+                        methodDefinitionsToCreate: [
+                          {
+                            name: `${shippingCountry} Shipping`,
+                            active: true,
+                            rateDefinition: { price: { amount: shippingAmount, currencyCode } }
+                          }
+                        ]
+                      }
+                    ]
+                  }
+                ]
+              }
+            };
+            const profileRes = await fetch(graphqlUrl, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json', 'X-Shopify-Access-Token': accessToken },
+              body: JSON.stringify({ query: createProfileMutation, variables: profileVariables })
+            });
+            const profileData = await profileRes.json();
+            const profileId = profileData.data.deliveryProfileCreate.profile?.id;
+            if (profileId) {
+              console.log('Created delivery profile with id', profileId);
+              // Assign variant to profile
+              const variantId = productResponse.product.variants?.[0]?.id;
+              if (variantId) {
+                const graphqlVariantId = typeof variantId === 'string' && variantId.includes('/')
+                  ? variantId
+                  : `gid://shopify/ProductVariant/${variantId}`;
+                const assignMutation = `
+                  mutation deliveryProfileUpdate($profileId: ID!, $profile: DeliveryProfileInput!) {
+                    deliveryProfileUpdate(id: $profileId, profile: $profile) {
+                      profile { id }
+                      userErrors { field message }
+                    }
+                  }
+                `;
+                const assignVariables = { profileId, profile: { variantsToAssociate: [graphqlVariantId] } };
+                const assignRes = await fetch(graphqlUrl, {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json', 'X-Shopify-Access-Token': accessToken },
+                  body: JSON.stringify({ query: assignMutation, variables: assignVariables })
+                });
+                const assignData = await assignRes.json();
+                if (assignData.data.deliveryProfileUpdate.userErrors?.length) {
+                  console.error('Error assigning variant to profile', assignData.data.deliveryProfileUpdate.userErrors);
+                } else {
+                  console.log('Assigned variant to profile');
+                }
+              }
+            } else {
+              console.error('Error creating delivery profile', profileData.data.deliveryProfileCreate.userErrors);
+            }
+          }
+        } catch (shippingError) {
+          console.error('Shipping integration error:', shippingError);
+        }
+      }
       
       try {
         // Handle base64 data URLs directly

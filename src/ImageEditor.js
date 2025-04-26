@@ -42,6 +42,18 @@ const ImageEditor = () => {
   const [activeCorner, setActiveCorner] = useState(null);
   const [showRecovery, setShowRecovery] = useState(false);
   const [recoveryInfo, setRecoveryInfo] = useState(null);
+  // Destination country selection for shipping (default to Hungary)
+  const [selectedCountry, setSelectedCountry] = useState('HU');
+  const countryOptions = [
+    { code: 'HU', name: 'Hungary' },
+    { code: 'US', name: 'United States' },
+    { code: 'GB', name: 'United Kingdom' },
+    { code: 'CA', name: 'Canada' },
+    { code: 'AU', name: 'Australia' },
+    { code: 'DE', name: 'Germany' },
+    { code: 'FR', name: 'France' }
+    // Add more countries as needed
+  ];
   const canvasRef = useRef(null);
   const imageRef = useRef(null);
   const productImageRef = useRef(null);
@@ -793,7 +805,10 @@ const ImageEditor = () => {
         headers: {
           'Content-Type': 'application/json'
         },
-        body: JSON.stringify(productData)
+        body: JSON.stringify({
+          ...productData,
+          shippingCountry: selectedCountry
+        })
       });
       
       const createResponseText = await createResponse.text();
@@ -997,6 +1012,16 @@ const ImageEditor = () => {
       </div>
       
       <div className="editor-actions">
+        <label htmlFor="country-select" className="country-label">Destination Country:</label>
+        <select
+          id="country-select"
+          value={selectedCountry}
+          onChange={e => setSelectedCountry(e.target.value)}
+        >
+          {countryOptions.map(ct => (
+            <option key={ct.code} value={ct.code}>{ct.name}</option>
+          ))}
+        </select>
         <button className="crop-button" onClick={cropImage}>Crop & Continue</button>
       </div>
     </div>
