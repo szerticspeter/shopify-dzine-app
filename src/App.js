@@ -358,7 +358,11 @@ function App() {
               try {
                 // Check that all URLs are valid
                 resultUrls.forEach(url => new URL(url));
-                setResult({ urls: resultUrls, selectedUrl: resultUrls[0] });
+                // Proxy through Netlify function to avoid CORS issues
+                const proxiedUrls = resultUrls.map(url =>
+                  `/.netlify/functions/proxyImage?url=${encodeURIComponent(url)}`
+                );
+                setResult({ urls: proxiedUrls, selectedUrl: proxiedUrls[0] });
                 console.log('Successfully retrieved result image URLs:', resultUrls);
               } catch (e) {
                 console.error('Invalid URL format in results:', resultUrls);
