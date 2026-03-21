@@ -159,11 +159,11 @@ function App() {
         const base64Image = await fileToBase64(uploadedImage);
         
         // Map our UI style codes to actual dzine.ai API style codes
-        // Updated 2026-03 - old codes expired, using current equivalents
+        // Updated 2026-03 - only S-model legacy styles work with img2img
         const styleCodeMapping = {
-          'flamenco-dance': 'Style-dc010902-cf5d-41d8-be3d-ac87867e77f2', // GTA Comic (legacy) - closest to fun/artistic
-          'gta-comic': 'Style-b92052b1-043a-4b23-9b1f-7265d9f70c78',      // GTA Miami (new, active)
-          'toon-face': 'Style-5ab39890-fc29-4766-9e1f-52ee26474695'        // Dzine Toon Face (new, active)
+          'flamenco-dance': 'Style-5e28d7f9-8754-4aae-ac5f-8297dd6f39d5', // Flamenco Dance (legacy, S)
+          'gta-comic': 'Style-dc010902-cf5d-41d8-be3d-ac87867e77f2',      // GTA Comic (legacy, S)
+          'toon-face': 'Style-5773a474-18fd-47de-bb74-cf40c47231de'        // Toon Face (legacy, S)
         };
         
         // Get the actual API style code
