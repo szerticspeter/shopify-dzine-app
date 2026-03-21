@@ -159,10 +159,11 @@ function App() {
         const base64Image = await fileToBase64(uploadedImage);
         
         // Map our UI style codes to actual dzine.ai API style codes
+        // Updated 2026-03 - old codes expired, using current equivalents
         const styleCodeMapping = {
-          'flamenco-dance': 'Style-5e28d7f9-8754-4aae-ac5f-8297dd6f39d5', // Flamenco Dance style
-          'gta-comic': 'Style-5b1b0c35-7abc-4f14-8b1d-dc2748f34915', // GTA Comic style
-          'toon-face': 'Style-96fb8bd7-c4ed-466d-b94f-5a5625a64bbf'  // Toon Face style
+          'flamenco-dance': 'Style-dc010902-cf5d-41d8-be3d-ac87867e77f2', // GTA Comic (legacy) - closest to fun/artistic
+          'gta-comic': 'Style-b92052b1-043a-4b23-9b1f-7265d9f70c78',      // GTA Miami (new, active)
+          'toon-face': 'Style-5ab39890-fc29-4766-9e1f-52ee26474695'        // Dzine Toon Face (new, active)
         };
         
         // Get the actual API style code
@@ -215,7 +216,7 @@ function App() {
         
         // Fallback to mock if the API fails
         if (selectedStyleObj.stylizedImage) {
-          setResult({ url: selectedStyleObj.stylizedImage });
+          setResult({ urls: [selectedStyleObj.stylizedImage], selectedUrl: selectedStyleObj.stylizedImage });
         }
       }
     }

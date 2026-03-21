@@ -1,0 +1,423 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Shopify Product Listing</title>
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 20px;
+      line-height: 1.6;
+      color: #333;
+      background: linear-gradient(135deg, #e0c3fc 0%, #8ec5fc 100%);
+      background-attachment: fixed;
+      min-height: 100vh;
+    }
+    
+    .container {
+      background-color: rgba(255, 255, 255, 0.95);
+      border-radius: 20px;
+      box-shadow: 0 15px 35px rgba(0, 0, 0, 0.15);
+      padding: 40px;
+      margin-top: 40px;
+      margin-bottom: 40px;
+    }
+    
+    h1 {
+      color: #008060;
+      margin-bottom: 30px;
+    }
+    
+    .loading {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin: 50px 0;
+    }
+    
+    .spinner {
+      display: inline-block;
+      width: 40px;
+      height: 40px;
+      border: 4px solid rgba(0, 128, 96, 0.2);
+      border-radius: 50%;
+      border-top-color: #008060;
+      animation: spin 1s ease-in-out infinite;
+      margin-right: 15px;
+    }
+    
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+    
+    .product-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+      gap: 30px;
+      margin-top: 30px;
+    }
+    
+    .product-card {
+      border: 1px solid #e2e8f0;
+      border-radius: 12px;
+      overflow: hidden;
+      transition: all 0.3s ease;
+      box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05);
+    }
+    
+    .product-card:hover {
+      transform: translateY(-5px);
+      box-shadow: 0 10px 20px rgba(0, 0, 0, 0.1);
+    }
+    
+    .product-image {
+      width: 100%;
+      height: 200px;
+      object-fit: cover;
+      background-color: #f9f9f9;
+      border-bottom: 1px solid #e2e8f0;
+    }
+    
+    .product-image.no-image {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: #a0aec0;
+      font-size: 14px;
+    }
+    
+    .product-details {
+      padding: 20px;
+    }
+    
+    .product-title {
+      font-size: 18px;
+      font-weight: 600;
+      margin-bottom: 10px;
+      color: #2d3748;
+    }
+    
+    .product-meta {
+      color: #718096;
+      font-size: 14px;
+      margin-bottom: 15px;
+    }
+    
+    .variant-list {
+      margin-top: 15px;
+      border-top: 1px solid #e2e8f0;
+      padding-top: 15px;
+    }
+    
+    .variant-item {
+      padding: 10px;
+      background-color: #f7fafc;
+      border-radius: 6px;
+      margin-bottom: 8px;
+    }
+    
+    .variant-title {
+      font-weight: 500;
+      margin-bottom: 5px;
+    }
+    
+    .variant-price {
+      font-weight: 600;
+      color: #2d3748;
+    }
+    
+    .variant-id {
+      font-family: monospace;
+      font-size: 12px;
+      color: #718096;
+      word-break: break-all;
+      margin-top: 5px;
+    }
+    
+    .action-buttons {
+      display: flex;
+      gap: 8px;
+      margin-top: 10px;
+    }
+    
+    .btn {
+      padding: 6px 12px;
+      border-radius: 4px;
+      font-size: 14px;
+      font-weight: 500;
+      text-decoration: none;
+      display: inline-block;
+      transition: all 0.2s ease;
+    }
+    
+    .btn-primary {
+      background-color: #008060;
+      color: white;
+    }
+    
+    .btn-primary:hover {
+      background-color: #006e52;
+    }
+    
+    .btn-secondary {
+      background-color: #718096;
+      color: white;
+    }
+    
+    .btn-secondary:hover {
+      background-color: #4a5568;
+    }
+    
+    .error-container {
+      background-color: #fdf2f2;
+      border-left: 4px solid #ef4444;
+      color: #b91c1c;
+      padding: 20px;
+      border-radius: 8px;
+      margin: 30px 0;
+    }
+    
+    .copy-btn {
+      background-color: #edf2f7;
+      border: none;
+      padding: 2px 8px;
+      border-radius: 4px;
+      font-size: 12px;
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+    
+    .copy-btn:hover {
+      background-color: #e2e8f0;
+    }
+    
+    .copied {
+      background-color: #c6f6d5;
+      color: #2f855a;
+    }
+    
+    .test-links {
+      margin-top: 30px;
+      padding: 20px;
+      background-color: #f7fafc;
+      border-radius: 10px;
+    }
+    
+    .test-links h2 {
+      color: #2d3748;
+      font-size: 18px;
+      margin-bottom: 15px;
+    }
+    
+    .test-links ul {
+      padding-left: 20px;
+    }
+    
+    .test-links li {
+      margin-bottom: 10px;
+    }
+    
+    .test-links a {
+      color: #008060;
+      text-decoration: none;
+      font-weight: 500;
+    }
+    
+    .test-links a:hover {
+      text-decoration: underline;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>Shopify Product Listing</h1>
+    <p>This page displays your existing Shopify products and their variant IDs to help with testing.</p>
+    
+    <div id="loading" class="loading">
+      <div class="spinner"></div>
+      <p>Loading products from your Shopify store...</p>
+    </div>
+    
+    <div id="error-container" class="error-container" style="display: none;">
+      <h3>Error Loading Products</h3>
+      <p id="error-message"></p>
+      <pre id="error-details" style="white-space: pre-wrap; font-size: 12px;"></pre>
+    </div>
+    
+    <div id="products-container" style="display: none;">
+      <div id="shop-info"></div>
+      <div id="product-grid" class="product-grid"></div>
+    </div>
+    
+    <div class="test-links">
+      <h2>Testing Tools</h2>
+      <ul>
+        <li><a href="checkout-test.html">Checkout Test Page</a> - Test direct checkout redirects with a variant ID</li>
+        <li><a href="product-test.html">Product Creation Test Page</a> - Test creating new products in your store</li>
+      </ul>
+    </div>
+  </div>
+
+  <script>
+    document.addEventListener('DOMContentLoaded', function() {
+      const loadingEl = document.getElementById('loading');
+      const errorContainerEl = document.getElementById('error-container');
+      const errorMessageEl = document.getElementById('error-message');
+      const errorDetailsEl = document.getElementById('error-details');
+      const productsContainerEl = document.getElementById('products-container');
+      const shopInfoEl = document.getElementById('shop-info');
+      const productGridEl = document.getElementById('product-grid');
+      
+      // Function to copy text to clipboard
+      function copyToClipboard(text, button) {
+        navigator.clipboard.writeText(text).then(() => {
+          button.textContent = 'Copied!';
+          button.classList.add('copied');
+          
+          setTimeout(() => {
+            button.textContent = 'Copy';
+            button.classList.remove('copied');
+          }, 2000);
+        }).catch(err => {
+          console.error('Failed to copy text: ', err);
+          button.textContent = 'Failed!';
+          
+          setTimeout(() => {
+            button.textContent = 'Copy';
+          }, 2000);
+        });
+      }
+      
+      // Fetch products from Netlify function
+      async function fetchProducts() {
+        try {
+          const response = await fetch('/.netlify/functions/listShopifyProducts');
+          
+          if (!response.ok) {
+            let errorText = await response.text();
+            let errorData;
+            
+            try {
+              errorData = JSON.parse(errorText);
+            } catch (e) {
+              errorData = { error: `Status ${response.status}: ${errorText}` };
+            }
+            
+            throw new Error(errorData.error || `API error: ${response.status} ${response.statusText}`);
+          }
+          
+          const data = await response.json();
+          return data;
+        } catch (error) {
+          console.error('Error fetching products:', error);
+          throw error;
+        }
+      }
+      
+      // Display products in grid
+      function displayProducts(data) {
+        // Display shop info
+        shopInfoEl.innerHTML = `
+          <h2>Products from: ${data.shop || 'Your Shopify Store'}</h2>
+          <p>Found ${data.count || 0} products</p>
+        `;
+        
+        // Check if we have products
+        if (!data.products || data.products.length === 0) {
+          productGridEl.innerHTML = '<p>No products found in your store.</p>';
+          return;
+        }
+        
+        // Generate product cards
+        const productCards = data.products.map(product => {
+          // Get the first image if available
+          const productImage = product.images && product.images.length > 0
+            ? `<img src="${product.images[0].src}" alt="${product.title}" class="product-image">`
+            : `<div class="product-image no-image">No Image Available</div>`;
+          
+          // Generate variant HTML
+          const variantsHtml = product.variants.map(variant => {
+            // Format variant ID for display and copying
+            const displayId = variant.id;
+            
+            return `
+              <div class="variant-item">
+                <div class="variant-title">${variant.title === 'Default Title' ? 'Default Variant' : variant.title}</div>
+                <div class="variant-price">$${variant.price}</div>
+                <div class="variant-id">
+                  ID: ${displayId}
+                  <button class="copy-btn" onclick="copyToClipboard('${displayId}', this)">Copy</button>
+                </div>
+                <div class="action-buttons">
+                  <a href="${variant.cart_url}" target="_blank" class="btn btn-secondary">View Cart</a>
+                  <a href="${variant.checkout_url}" target="_blank" class="btn btn-primary">Checkout</a>
+                </div>
+              </div>
+            `;
+          }).join('');
+          
+          return `
+            <div class="product-card">
+              ${productImage}
+              <div class="product-details">
+                <div class="product-title">${product.title}</div>
+                <div class="product-meta">
+                  <div>ID: ${product.id}</div>
+                  <div>Status: ${product.status}</div>
+                </div>
+                <div class="action-buttons">
+                  <a href="${product.storefront_url}" target="_blank" class="btn btn-secondary">View Product</a>
+                  <a href="${product.admin_url}" target="_blank" class="btn btn-primary">Admin</a>
+                </div>
+                <div class="variant-list">
+                  <h3>Variants</h3>
+                  ${variantsHtml}
+                </div>
+              </div>
+            </div>
+          `;
+        }).join('');
+        
+        // Add to the grid
+        productGridEl.innerHTML = productCards;
+        
+        // Set up copy function on window object so it can be called from onclick
+        window.copyToClipboard = copyToClipboard;
+      }
+      
+      // Main function
+      async function init() {
+        try {
+          // Fetch products
+          const data = await fetchProducts();
+          
+          // Hide loading and display products
+          loadingEl.style.display = 'none';
+          productsContainerEl.style.display = 'block';
+          
+          // Display products
+          displayProducts(data);
+        } catch (error) {
+          // Hide loading and show error
+          loadingEl.style.display = 'none';
+          errorContainerEl.style.display = 'block';
+          
+          // Display error message
+          errorMessageEl.textContent = error.message || 'An unknown error occurred';
+          
+          // Display error details if available
+          if (error.stack) {
+            errorDetailsEl.textContent = error.stack;
+          }
+        }
+      }
+      
+      // Start the app
+      init();
+    });
+  </script>
+</body>
+</html>
