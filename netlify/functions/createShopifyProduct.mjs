@@ -168,6 +168,7 @@ export async function handler(event, context) {
       variants: [
         {
           price: price,
+          sku: 'dzine_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9),
           inventory_management: 'shopify',
           inventory_quantity: 10
         }
