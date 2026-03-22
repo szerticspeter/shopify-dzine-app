@@ -84,6 +84,7 @@ export async function handler(event, context) {
     // 1. Single access token
     // 2. API key + API secret                 
     let accessToken = process.env.SHOPIFY_ACCESS_TOKEN || 
+                      process.env.REACT_APP_SHOPIFY_ACCESS_TOKEN ||
                       process.env.SHOPIFY_API_TOKEN ||
                       process.env.SHOPIFY_API_ACCESS_TOKEN;
     
@@ -221,6 +222,16 @@ export async function handler(event, context) {
           }
         }
         
+        // Step B: Set inventory level so the product is in stock
+        let inventoryResult = null;
+        try {
+          inventoryResult = await setInventoryLevel(shopDomain, accessToken, productResponse.product, apiVersion);
+          console.log('Inventory level set successfully:', inventoryResult);
+        } catch (inventoryError) {
+          console.error('Error setting inventory level (non-fatal):', inventoryError.message);
+          // Non-fatal: product was created, just log and continue
+        }
+
         // Return success with product and image data
         return {
           statusCode: 200,
@@ -229,12 +240,21 @@ export async function handler(event, context) {
             product: productResponse.product,
             image: imageResponse.image,
             metafields: metafieldsResult,
+            inventory: inventoryResult,
             success: true
           })
         };
       } catch (imageError) {
         console.error("Error attaching image:", imageError);
         
+        // Still try to set inventory even when image fails
+        let inventoryResult = null;
+        try {
+          inventoryResult = await setInventoryLevel(shopDomain, accessToken, productResponse.product, apiVersion);
+        } catch (inventoryError) {
+          console.error('Error setting inventory level (non-fatal):', inventoryError.message);
+        }
+
         // Even if image upload fails, return product data
         return {
           statusCode: 201, // Created, but with warning
@@ -242,6 +262,7 @@ export async function handler(event, context) {
           body: JSON.stringify({
             product: productResponse.product,
             warning: "Product created but image could not be attached: " + imageError.message,
+            inventory: inventoryResult,
             success: true
           })
         };
@@ -552,6 +573,88 @@ async function attachBase64ImageToProduct(shopDomain, accessToken, productId, ba
     console.error('Error attaching base64 image to product:', error.message);
     throw error;
   }
+}
+
+/**
+ * Set inventory level for a newly created product so it's not shown as "out of stock"
+ * Fetches the first location, gets the inventory_item_id from the first variant,
+ * then calls /inventory_levels/set.json with available: 10
+ */
+async function setInventoryLevel(shopDomain, accessToken, product, apiVersion) {
+  apiVersion = apiVersion || process.env.SHOPIFY_API_VERSION || '2023-07';
+
+  // Build auth headers (same pattern used throughout the file)
+  let authHeaders = {};
+  if (accessToken) {
+    authHeaders = { 'X-Shopify-Access-Token': accessToken };
+  } else if (global.shopifyAuth) {
+    if (global.shopifyAuth.accessToken) {
+      authHeaders = { 'X-Shopify-Access-Token': global.shopifyAuth.accessToken };
+    } else if (global.shopifyAuth.apiKey && global.shopifyAuth.apiSecret) {
+      const authString = Buffer.from(`${global.shopifyAuth.apiKey}:${global.shopifyAuth.apiSecret}`).toString('base64');
+      authHeaders = { 'Authorization': `Basic ${authString}` };
+    }
+  }
+
+  if (Object.keys(authHeaders).length === 0) {
+    throw new Error('No valid authentication method available for inventory update');
+  }
+
+  const baseHeaders = { 'Content-Type': 'application/json', ...authHeaders };
+
+  // Step 1: Get the first location ID
+  const locationsUrl = `https://${shopDomain}/admin/api/${apiVersion}/locations.json`;
+  console.log('Fetching locations from:', locationsUrl);
+  const locationsResponse = await fetch(locationsUrl, { headers: baseHeaders });
+
+  if (!locationsResponse.ok) {
+    const text = await locationsResponse.text();
+    throw new Error(`Failed to fetch locations: ${locationsResponse.status} - ${text.substring(0, 100)}`);
+  }
+
+  const locationsData = await locationsResponse.json();
+  const locations = locationsData.locations;
+
+  if (!locations || locations.length === 0) {
+    throw new Error('No locations found in Shopify store');
+  }
+
+  const locationId = locations[0].id;
+  console.log('Using location ID:', locationId);
+
+  // Step 2: Get the inventory_item_id from the first variant of the created product
+  const variants = product.variants;
+  if (!variants || variants.length === 0) {
+    throw new Error('Product has no variants — cannot set inventory');
+  }
+
+  const inventoryItemId = variants[0].inventory_item_id;
+  if (!inventoryItemId) {
+    throw new Error('Variant has no inventory_item_id');
+  }
+
+  console.log('Setting inventory for inventory_item_id:', inventoryItemId, 'at location:', locationId);
+
+  // Step 3: Call /inventory_levels/set.json
+  const inventoryUrl = `https://${shopDomain}/admin/api/${apiVersion}/inventory_levels/set.json`;
+  const inventoryResponse = await fetch(inventoryUrl, {
+    method: 'POST',
+    headers: baseHeaders,
+    body: JSON.stringify({
+      location_id: locationId,
+      inventory_item_id: inventoryItemId,
+      available: 10
+    })
+  });
+
+  if (!inventoryResponse.ok) {
+    const text = await inventoryResponse.text();
+    throw new Error(`Failed to set inventory level: ${inventoryResponse.status} - ${text.substring(0, 200)}`);
+  }
+
+  const inventoryData = await inventoryResponse.json();
+  console.log('Inventory level set to 10 available units');
+  return inventoryData.inventory_level;
 }
 
 /**
