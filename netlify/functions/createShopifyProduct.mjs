@@ -170,6 +170,7 @@ export async function handler(event, context) {
           price: price,
           sku: 'dzine_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9),
           inventory_management: 'shopify',
+          inventory_policy: 'continue', // Allow purchase regardless of stock level
           inventory_quantity: 10
         }
       ]
@@ -684,6 +685,26 @@ async function setInventoryLevel(shopDomain, accessToken, product, apiVersion) {
   }
 
   console.log('[INVENTORY] inventory_item_id:', inventoryItemId);
+
+  // Step 2.5: Ensure inventory item is set to "tracked: true"
+  // This is needed because when a variant is created via REST API,
+  // the inventory_item may not be automatically set to tracked.
+  // Without tracked: true, inventory_levels/set succeeds at the API level
+  // but the storefront still shows the product as out of stock.
+  const updateItemUrl = `https://${shopDomain}/admin/api/${apiVersion}/inventory_items/${inventoryItemId}.json`;
+  console.log('[INVENTORY] Setting tracked: true on inventory_item...');
+  try {
+    const updateItemResponse = await fetch(updateItemUrl, {
+      method: 'PUT',
+      headers: baseHeaders,
+      body: JSON.stringify({ inventory_item: { id: inventoryItemId, tracked: true } })
+    });
+    console.log('[INVENTORY] inventory_item update status:', updateItemResponse.status);
+    const updateItemData = await updateItemResponse.json();
+    console.log('[INVENTORY] inventory_item tracked:', updateItemData.inventory_item?.tracked);
+  } catch (updateErr) {
+    console.warn('[INVENTORY] Could not update inventory_item tracked (non-fatal):', updateErr.message);
+  }
 
   // Step 3: Call /inventory_levels/set.json
   const inventoryUrl = `https://${shopDomain}/admin/api/${apiVersion}/inventory_levels/set.json`;
