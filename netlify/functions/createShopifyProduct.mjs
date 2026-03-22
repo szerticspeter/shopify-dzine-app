@@ -169,9 +169,9 @@ export async function handler(event, context) {
         {
           price: price,
           sku: 'dzine_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9),
-          inventory_management: 'shopify',
-          inventory_policy: 'continue', // Allow purchase regardless of stock level
-          inventory_quantity: 10
+          inventory_management: null,        // POD: no Shopify inventory tracking
+          inventory_policy: 'continue'       // Always purchasable; Gelato handles fulfillment
+          // inventory_quantity: 10 -- removed; not needed for print-on-demand
         }
       ]
     };
@@ -235,17 +235,18 @@ export async function handler(event, context) {
           }
         }
         
-        // Step B: Set inventory level so the product is in stock
+        // Step B: setInventoryLevel disabled — POD model uses inventory_policy:'continue' instead
+        // Gelato handles fulfillment; no need to track/set Shopify inventory levels.
         let inventoryResult = null;
-        try {
-          console.log('[INVENTORY] About to call setInventoryLevel for product:', productResponse.product.id);
-          inventoryResult = await setInventoryLevel(shopDomain, accessToken, productResponse.product, apiVersion);
-          console.log('[INVENTORY] setInventoryLevel returned successfully:', JSON.stringify(inventoryResult));
-        } catch (inventoryError) {
-          console.error('[INVENTORY] setInventoryLevel THREW ERROR:', inventoryError.message);
-          console.error('[INVENTORY] Full error:', inventoryError);
-          // Non-fatal: product was created, just log and continue
-        }
+        // try {
+        //   console.log('[INVENTORY] About to call setInventoryLevel for product:', productResponse.product.id);
+        //   inventoryResult = await setInventoryLevel(shopDomain, accessToken, productResponse.product, apiVersion);
+        //   console.log('[INVENTORY] setInventoryLevel returned successfully:', JSON.stringify(inventoryResult));
+        // } catch (inventoryError) {
+        //   console.error('[INVENTORY] setInventoryLevel THREW ERROR:', inventoryError.message);
+        //   console.error('[INVENTORY] Full error:', inventoryError);
+        //   // Non-fatal: product was created, just log and continue
+        // }
 
         // Return success with product and image data
         return {
@@ -262,16 +263,16 @@ export async function handler(event, context) {
       } catch (imageError) {
         console.error("Error attaching image:", imageError);
         
-        // Still try to set inventory even when image fails
+        // setInventoryLevel disabled — POD model uses inventory_policy:'continue' instead
         let inventoryResult = null;
-        try {
-          console.log('[INVENTORY] (image-failed path) About to call setInventoryLevel for product:', productResponse.product.id);
-          inventoryResult = await setInventoryLevel(shopDomain, accessToken, productResponse.product, apiVersion);
-          console.log('[INVENTORY] (image-failed path) setInventoryLevel returned:', JSON.stringify(inventoryResult));
-        } catch (inventoryError) {
-          console.error('[INVENTORY] (image-failed path) setInventoryLevel THREW ERROR:', inventoryError.message);
-          console.error('[INVENTORY] (image-failed path) Full error:', inventoryError);
-        }
+        // try {
+        //   console.log('[INVENTORY] (image-failed path) About to call setInventoryLevel for product:', productResponse.product.id);
+        //   inventoryResult = await setInventoryLevel(shopDomain, accessToken, productResponse.product, apiVersion);
+        //   console.log('[INVENTORY] (image-failed path) setInventoryLevel returned:', JSON.stringify(inventoryResult));
+        // } catch (inventoryError) {
+        //   console.error('[INVENTORY] (image-failed path) setInventoryLevel THREW ERROR:', inventoryError.message);
+        //   console.error('[INVENTORY] (image-failed path) Full error:', inventoryError);
+        // }
 
         // Even if image upload fails, return product data
         return {
@@ -594,11 +595,16 @@ async function attachBase64ImageToProduct(shopDomain, accessToken, productId, ba
 }
 
 /**
- * Set inventory level for a newly created product so it's not shown as "out of stock"
+ * setInventoryLevel — DISABLED for print-on-demand model.
+ * POD products use inventory_management: null + inventory_policy: 'continue'.
+ * Gelato handles actual fulfillment; Shopify inventory tracking is unnecessary.
+ *
+ * Original: Set inventory level for a newly created product so it's not shown as "out of stock"
  * Fetches the first location, gets the inventory_item_id from the first variant,
  * then calls /inventory_levels/set.json with available: 10
  */
-async function setInventoryLevel(shopDomain, accessToken, product, apiVersion) {
+// async function setInventoryLevel(shopDomain, accessToken, product, apiVersion) {
+async function setInventoryLevel_DISABLED(shopDomain, accessToken, product, apiVersion) {
   console.log('[INVENTORY] ========== setInventoryLevel START ==========');
   console.log('[INVENTORY] shopDomain:', shopDomain);
   console.log('[INVENTORY] product ID:', product && product.id);
