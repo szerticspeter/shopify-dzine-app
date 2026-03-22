@@ -175,7 +175,18 @@ export async function handler(event, context) {
     };
 
     // Step 1: Create the product first
+    console.log('[HANDLER] Calling createShopifyProduct...');
     const productResponse = await createShopifyProduct(shopDomain, accessToken, productData);
+    console.log('[HANDLER] createShopifyProduct returned. Product ID:', productResponse && productResponse.product && productResponse.product.id);
+    if (productResponse && productResponse.product && productResponse.product.variants) {
+      const v = productResponse.product.variants[0];
+      console.log('[HANDLER] First variant from create response:', JSON.stringify({
+        id: v && v.id,
+        inventory_item_id: v && v.inventory_item_id,
+        inventory_management: v && v.inventory_management,
+        inventory_quantity: v && v.inventory_quantity
+      }));
+    }
 
     // Step 2: If product created successfully, attach the image
     if (productResponse && productResponse.product && productResponse.product.id) {
@@ -225,10 +236,12 @@ export async function handler(event, context) {
         // Step B: Set inventory level so the product is in stock
         let inventoryResult = null;
         try {
+          console.log('[INVENTORY] About to call setInventoryLevel for product:', productResponse.product.id);
           inventoryResult = await setInventoryLevel(shopDomain, accessToken, productResponse.product, apiVersion);
-          console.log('Inventory level set successfully:', inventoryResult);
+          console.log('[INVENTORY] setInventoryLevel returned successfully:', JSON.stringify(inventoryResult));
         } catch (inventoryError) {
-          console.error('Error setting inventory level (non-fatal):', inventoryError.message);
+          console.error('[INVENTORY] setInventoryLevel THREW ERROR:', inventoryError.message);
+          console.error('[INVENTORY] Full error:', inventoryError);
           // Non-fatal: product was created, just log and continue
         }
 
@@ -250,9 +263,12 @@ export async function handler(event, context) {
         // Still try to set inventory even when image fails
         let inventoryResult = null;
         try {
+          console.log('[INVENTORY] (image-failed path) About to call setInventoryLevel for product:', productResponse.product.id);
           inventoryResult = await setInventoryLevel(shopDomain, accessToken, productResponse.product, apiVersion);
+          console.log('[INVENTORY] (image-failed path) setInventoryLevel returned:', JSON.stringify(inventoryResult));
         } catch (inventoryError) {
-          console.error('Error setting inventory level (non-fatal):', inventoryError.message);
+          console.error('[INVENTORY] (image-failed path) setInventoryLevel THREW ERROR:', inventoryError.message);
+          console.error('[INVENTORY] (image-failed path) Full error:', inventoryError);
         }
 
         // Even if image upload fails, return product data
@@ -581,22 +597,41 @@ async function attachBase64ImageToProduct(shopDomain, accessToken, productId, ba
  * then calls /inventory_levels/set.json with available: 10
  */
 async function setInventoryLevel(shopDomain, accessToken, product, apiVersion) {
+  console.log('[INVENTORY] ========== setInventoryLevel START ==========');
+  console.log('[INVENTORY] shopDomain:', shopDomain);
+  console.log('[INVENTORY] product ID:', product && product.id);
+  console.log('[INVENTORY] product.variants count:', product && product.variants && product.variants.length);
+  if (product && product.variants && product.variants.length > 0) {
+    const v = product.variants[0];
+    console.log('[INVENTORY] first variant:', JSON.stringify({
+      id: v.id,
+      inventory_item_id: v.inventory_item_id,
+      inventory_management: v.inventory_management,
+      inventory_quantity: v.inventory_quantity
+    }));
+  }
+
   apiVersion = apiVersion || process.env.SHOPIFY_API_VERSION || '2023-07';
+  console.log('[INVENTORY] Using API version:', apiVersion);
 
   // Build auth headers (same pattern used throughout the file)
   let authHeaders = {};
   if (accessToken) {
     authHeaders = { 'X-Shopify-Access-Token': accessToken };
+    console.log('[INVENTORY] Auth: using passed accessToken');
   } else if (global.shopifyAuth) {
     if (global.shopifyAuth.accessToken) {
       authHeaders = { 'X-Shopify-Access-Token': global.shopifyAuth.accessToken };
+      console.log('[INVENTORY] Auth: using global.shopifyAuth.accessToken');
     } else if (global.shopifyAuth.apiKey && global.shopifyAuth.apiSecret) {
       const authString = Buffer.from(`${global.shopifyAuth.apiKey}:${global.shopifyAuth.apiSecret}`).toString('base64');
       authHeaders = { 'Authorization': `Basic ${authString}` };
+      console.log('[INVENTORY] Auth: using global.shopifyAuth apiKey+secret');
     }
   }
 
   if (Object.keys(authHeaders).length === 0) {
+    console.error('[INVENTORY] ERROR: No valid authentication method available');
     throw new Error('No valid authentication method available for inventory update');
   }
 
@@ -604,56 +639,84 @@ async function setInventoryLevel(shopDomain, accessToken, product, apiVersion) {
 
   // Step 1: Get the first location ID
   const locationsUrl = `https://${shopDomain}/admin/api/${apiVersion}/locations.json`;
-  console.log('Fetching locations from:', locationsUrl);
-  const locationsResponse = await fetch(locationsUrl, { headers: baseHeaders });
+  console.log('[INVENTORY] Fetching locations from:', locationsUrl);
+
+  let locationsResponse;
+  try {
+    locationsResponse = await fetch(locationsUrl, { headers: baseHeaders });
+  } catch (fetchErr) {
+    console.error('[INVENTORY] Network error fetching locations:', fetchErr);
+    throw fetchErr;
+  }
+
+  console.log('[INVENTORY] Locations response status:', locationsResponse.status);
 
   if (!locationsResponse.ok) {
     const text = await locationsResponse.text();
-    throw new Error(`Failed to fetch locations: ${locationsResponse.status} - ${text.substring(0, 100)}`);
+    console.error('[INVENTORY] Failed to fetch locations. Status:', locationsResponse.status, 'Body:', text.substring(0, 300));
+    throw new Error(`Failed to fetch locations: ${locationsResponse.status} - ${text.substring(0, 200)}`);
   }
 
   const locationsData = await locationsResponse.json();
   const locations = locationsData.locations;
+  console.log('[INVENTORY] Locations found:', locations && locations.length);
 
   if (!locations || locations.length === 0) {
+    console.error('[INVENTORY] ERROR: No locations found in Shopify store');
     throw new Error('No locations found in Shopify store');
   }
 
   const locationId = locations[0].id;
-  console.log('Using location ID:', locationId);
+  console.log('[INVENTORY] Using location ID:', locationId, '| location name:', locations[0].name);
 
   // Step 2: Get the inventory_item_id from the first variant of the created product
   const variants = product.variants;
   if (!variants || variants.length === 0) {
+    console.error('[INVENTORY] ERROR: Product has no variants');
     throw new Error('Product has no variants — cannot set inventory');
   }
 
   const inventoryItemId = variants[0].inventory_item_id;
   if (!inventoryItemId) {
+    console.error('[INVENTORY] ERROR: variants[0].inventory_item_id is missing/falsy. Full variant:', JSON.stringify(variants[0]));
     throw new Error('Variant has no inventory_item_id');
   }
 
-  console.log('Setting inventory for inventory_item_id:', inventoryItemId, 'at location:', locationId);
+  console.log('[INVENTORY] inventory_item_id:', inventoryItemId);
 
   // Step 3: Call /inventory_levels/set.json
   const inventoryUrl = `https://${shopDomain}/admin/api/${apiVersion}/inventory_levels/set.json`;
-  const inventoryResponse = await fetch(inventoryUrl, {
-    method: 'POST',
-    headers: baseHeaders,
-    body: JSON.stringify({
-      location_id: locationId,
-      inventory_item_id: inventoryItemId,
-      available: 10
-    })
-  });
+  const inventoryBody = {
+    location_id: locationId,
+    inventory_item_id: inventoryItemId,
+    available: 10
+  };
+  console.log('[INVENTORY] Calling inventory_levels/set:', inventoryUrl);
+  console.log('[INVENTORY] Request body:', JSON.stringify(inventoryBody));
+
+  let inventoryResponse;
+  try {
+    inventoryResponse = await fetch(inventoryUrl, {
+      method: 'POST',
+      headers: baseHeaders,
+      body: JSON.stringify(inventoryBody)
+    });
+  } catch (fetchErr) {
+    console.error('[INVENTORY] Network error calling inventory_levels/set:', fetchErr);
+    throw fetchErr;
+  }
+
+  console.log('[INVENTORY] inventory_levels/set response status:', inventoryResponse.status);
 
   if (!inventoryResponse.ok) {
     const text = await inventoryResponse.text();
-    throw new Error(`Failed to set inventory level: ${inventoryResponse.status} - ${text.substring(0, 200)}`);
+    console.error('[INVENTORY] FAILED to set inventory level. Status:', inventoryResponse.status, 'Body:', text.substring(0, 400));
+    throw new Error(`Failed to set inventory level: ${inventoryResponse.status} - ${text.substring(0, 300)}`);
   }
 
   const inventoryData = await inventoryResponse.json();
-  console.log('Inventory level set to 10 available units');
+  console.log('[INVENTORY] SUCCESS: inventory_level set. Response:', JSON.stringify(inventoryData));
+  console.log('[INVENTORY] ========== setInventoryLevel END (success) ==========');
   return inventoryData.inventory_level;
 }
 
